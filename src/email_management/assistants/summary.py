@@ -1,8 +1,6 @@
 from pydantic import BaseModel, Field
-
-from email_management.llm.model import get_model
+from email_management.llm import get_model
 from email_management.models import EmailMessage
-from email_management.types import EmailRef
 from email_management.utils import build_email_context
 
 
@@ -10,7 +8,7 @@ EMAIL_SUMMARY_PROMPT = """
 You are an assistant that summarizes emails for a busy user.
 
 Instructions (follow all):
-- Summarize the email in 2–4 sentences.
+- Summarize the email in 2-4 sentences.
 - Capture the main points, action items, and any dates/deadlines.
 - Do NOT include any meta commentary, just the summary text.
 

@@ -47,7 +47,7 @@ class FakeEasyQuery:
         self.fetch_calls.append(include_attachments)
 
         msg1 = EmailMessage(
-            ref=EmailRef(uid="1", mailbox="INBOX"),  # adapt to your EmailRef signature
+            ref=EmailRef(uid="1", mailbox="INBOX"),
             subject="First message",
             from_email="a@example.com",
             to=["me@example.com"],
@@ -164,7 +164,6 @@ def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
     assert len(msgs) == 2
     assert isinstance(msgs[0], EmailMessage)
 
-    # Ensure our EasyIMAPQuery was configured correctly
     assert fake_easy.limits == [2]
     assert fake_easy.fetch_calls == [True]
 
@@ -183,7 +182,7 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
     text, info = mgr.summarize_multi_emails(msgs, model_path="fake-model")
 
     assert isinstance(text, str)
-    assert text != ""  # from our fake
+    assert text != ""
     assert info["model"] == "fake-model"
 
 

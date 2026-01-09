@@ -44,7 +44,6 @@ def get_model(
     PARSE_EXC = (JSONDecodeError, OutputParserException, ValidationError)
 
     def run(prompt_text: str):
-        # how many total tries (first try + (retries-1) retries)
         infinite = (retries == -1)
         max_tries = float("inf") if infinite else max(1, retries)
         delay = base_delay
@@ -95,7 +94,6 @@ def get_model(
                 last_exc = e
             except Exception as e:
                 last_exc = e
-            print("Error: ", last_exc)
             
             attempt += 1
             if not infinite and attempt >= max_tries:

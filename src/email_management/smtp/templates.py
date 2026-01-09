@@ -1,4 +1,3 @@
-# src.email_management/smtp/templates.py
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Optional

@@ -1,4 +1,3 @@
-# src.email_management/smtp/builder.py
 from __future__ import annotations
 from email.message import EmailMessage as PyEmailMessage
 from email.utils import make_msgid

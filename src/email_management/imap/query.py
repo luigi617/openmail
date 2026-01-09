@@ -1,4 +1,3 @@
-# src/email_management/imap/query.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -133,7 +132,6 @@ class IMAPQuery:
         return self
 
     def new(self) -> IMAPQuery:
-        # RFC: NEW == RECENT UNSEEN
         self.parts += ["NEW"]
         return self
 

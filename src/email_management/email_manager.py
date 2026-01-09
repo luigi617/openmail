@@ -26,7 +26,6 @@ from email_management.utils import (iso_days_ago,
                                     remove_addr)
 
 
-# RFC 3501 IMAP system flags
 SEEN = r"\Seen"
 ANSWERED = r"\Answered"
 FLAGGED = r"\Flagged"
@@ -68,7 +67,7 @@ class EasyIMAPQuery:
             easy.query.unseen().from_("alerts@example.com")
 
             # later:
-            refs = easy.search()  # uses UNSEEN FROM alerts@example.com
+            refs = easy.search()
         """
         return self._q
     
@@ -85,8 +84,6 @@ class EasyIMAPQuery:
             raise TypeError("query must be an IMAPQuery")
         self._q = value
 
-    
-
     def last_days(self, days: int) -> EasyIMAPQuery:
         """Convenience: messages since N days ago (UTC)."""
         if days < 0:
@@ -94,9 +91,6 @@ class EasyIMAPQuery:
         self._q.since(iso_days_ago(days))
         return self
 
-   
-
-    # convenience: OR across fields using strings
     def from_any(self, *senders: str) -> EasyIMAPQuery:
         """
         FROM any of the senders (nested OR). Equivalent to:
@@ -182,7 +176,6 @@ class EasyIMAPQuery:
         q_to = [IMAPQuery().to(x) for x in p]
         q_cc = [IMAPQuery().cc(x) for x in p]
 
-        # OR across all participant fields
         self._q.or_(*(q_from + q_to + q_cc))
         return self
 
@@ -227,7 +220,6 @@ class EasyIMAPQuery:
         Best-effort heuristic:
         - look for common MIME markers in BODY (server-dependent).
         """
-        # Some servers index BODY for these; many don't. It's a hint, not a guarantee.
         hint = IMAPQuery().or_(
             IMAPQuery().body("Content-Disposition: attachment"),
             IMAPQuery().body("filename="),
@@ -303,10 +295,8 @@ class EmailManager:
         if from_addr:
             msg["From"] = from_addr
 
-        # Subject
         msg["Subject"] = ensure_reply_subject(original.subject)
 
-        # Primary reply target: Reply-To header or from_email
         reply_to = get_header(original.headers, "Reply-To") or original.from_email
         if reply_to:
             to_pairs = parse_addrs(reply_to)
@@ -314,14 +304,12 @@ class EmailManager:
             if to_addrs:
                 msg["To"] = ", ".join(to_addrs)
 
-        # Threading headers
         orig_mid = original.message_id
         if orig_mid:
             msg["In-Reply-To"] = orig_mid
             existing_refs = get_header(original.headers, "References")
             msg["References"] = build_references(existing_refs, orig_mid)
 
-        # Body (plain text reply)
         msg.set_content(body)
 
         return self.send(msg)
@@ -348,20 +336,15 @@ class EmailManager:
 
         msg["Subject"] = ensure_reply_subject(original.subject)
 
-        # Primary target: Reply-To or From
         primary = get_header(original.headers, "Reply-To") or original.from_email
         primary_pairs = parse_addrs(primary) if primary else []
 
-        # Others: all To + Cc from the original
-        # `original.to` / `original.cc` are sequences of strings
         to_str = ", ".join(original.to) if original.to else ""
         cc_str = ", ".join(original.cc) if original.cc else ""
         others_pairs = parse_addrs(to_str, cc_str)
 
-        # Remove our own address if provided
         others_pairs = remove_addr(others_pairs, from_addr)
 
-        # Avoid duplicating primary recipients in Cc
         primary_set = {addr.strip().lower() for _, addr in primary_pairs}
         cc_pairs = [(n, a) for (n, a) in others_pairs if a.strip().lower() not in primary_set]
 
@@ -373,7 +356,6 @@ class EmailManager:
         if cc_addrs:
             msg["Cc"] = ", ".join(cc_addrs)
 
-        # Threading headers
         orig_mid = original.message_id
         if orig_mid:
             msg["In-Reply-To"] = orig_mid

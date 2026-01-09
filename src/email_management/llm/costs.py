@@ -37,19 +37,6 @@ class TokenUsageCallback(BaseCallbackHandler):
             prompt_details = usage.get("prompt_tokens_details") or {}
             self.cached_prompt_tokens += prompt_details.get("cached_tokens", 0)
             return
-        
-        # for gemini
-        try:
-            usage = response.generations[0][0].message.usage_metadata
-            self.prompt_tokens += usage.get("input_tokens", 0)
-            self.completion_tokens += usage.get("output_tokens", 0)
-            self.total_tokens += usage.get("total_tokens", 0)
-
-            prompt_details = usage.get("input_token_details") or {}
-            self.cached_prompt_tokens += prompt_details.get("cache_read", 0)
-            return
-        except:
-            pass
 
 
 def _lookup_price(model_name: str) -> Dict[str, float]:

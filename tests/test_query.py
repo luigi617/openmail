@@ -49,7 +49,7 @@ def test_date_filters():
         .sent_before("2025-01-09")
         .sent_on("2025-01-06")
     )
-    # Using startswith/contains to avoid hardcoding all at once
+    
     parts = q.build().split()
 
     assert "SINCE" in parts
@@ -160,7 +160,7 @@ def test_or_combines_queries_with_nested_or():
     q3 = IMAPQuery().subject("hello")
 
     combined = IMAPQuery().or_(q1, q2, q3)
-    # Based on current implementation:
+    
     assert combined.build() == (
         'OR FROM "a@example.com" OR TO "b@example.com" SUBJECT "hello"'
     )
@@ -180,11 +180,11 @@ def test_raw_appends_tokens():
 
 
 def test_all_on_empty_query_and_default_build():
-    # Default build on empty query -> "ALL"
+    
     q_empty = IMAPQuery()
     assert q_empty.build() == "ALL"
 
-    # Using .all() explicitly
+    
     q = IMAPQuery().all()
     assert q.build() == "ALL"
 

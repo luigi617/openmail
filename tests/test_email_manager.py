@@ -1,9 +1,4 @@
-# tests/test_email_manager.py
-
-import pytest
 from email.message import EmailMessage as PyEmailMessage
-
-# Adjust these to your real paths
 import email_management.email_manager as mgr_mod
 from email_management.email_manager import EmailManager
 from email_management.models.message import EmailMessage
@@ -81,20 +76,20 @@ def test_reply_uses_reply_to_and_thread_headers():
     assert len(smtp.sent) == 1
     msg = smtp.sent[0]
 
-    # From is preserved
+    
     assert msg["From"] == "me@example.com"
 
-    # Subject should be a reply form
+    
     assert msg["Subject"].startswith("Re:")
 
-    # To: Reply-To, not original From
+    
     assert "alice+reply@example.com" in msg["To"]
 
-    # Threading
+    
     assert msg["In-Reply-To"] == original.message_id
     assert original.message_id in msg["References"]
 
-    # Body
+    
     assert msg.get_content().strip() == "Thanks!"
 
 
@@ -103,12 +98,12 @@ def test_reply_falls_back_to_from_when_no_reply_to():
     imap = FakeIMAPClient()
     mgr = EmailManager(smtp=smtp, imap=imap)
 
-    original = _make_original_message(headers={})  # no Reply-To
+    original = _make_original_message(headers={})  
 
     mgr.reply(original, body="Hello back", from_addr="me@example.com")
 
     msg = smtp.sent[0]
-    # Should reply directly to original sender
+    
     assert msg["To"] == "alice@example.com"
 
 
@@ -121,21 +116,21 @@ def test_reply_all_to_and_cc_resolved_correctly():
         from_email="alice@example.com",
         to=["me@example.com"],
         cc=["carol@example.com", "dave@example.com"],
-        headers={},  # no Reply-To
+        headers={},  
     )
 
     mgr.reply_all(original, body="Replying all", from_addr="me@example.com")
     msg = smtp.sent[0]
 
-    # Primary target: From (no Reply-To)
+    
     assert msg["To"] == "alice@example.com"
 
-    # Cc: everyone else in original To/Cc except myself
+    
     cc_list = [a.strip() for a in msg["Cc"].split(",")]
     assert set(cc_list) == {"carol@example.com", "dave@example.com"}
     assert "me@example.com" not in cc_list
 
-    # Subject is reply-style
+    
     assert msg["Subject"].startswith("Re:")
 
 def test_imap_query_returns_easy_query():
@@ -145,7 +140,7 @@ def test_imap_query_returns_easy_query():
 
     q = mgr.imap_query("Archive")
 
-    # We don't care about exact type import; just check class name and mailbox
+    
     assert q.__class__.__name__ == "EasyIMAPQuery"
     assert q._mailbox == "Archive"
     assert q._m is mgr
@@ -180,22 +175,22 @@ def test_fetch_latest_seen_and_unseen(monkeypatch):
     def fake_imap_query(self, mailbox="INBOX"):
         return fake_easy
 
-    # override instance method
+    
     monkeypatch.setattr(EmailManager, "imap_query", fake_imap_query)
 
-    # unseen_only = False
+    
     msgs = mgr.fetch_latest(mailbox="INBOX", n=10, unseen_only=False, include_attachments=True)
     assert msgs == ["msg-1", "msg-2"]
     assert fake_easy.limits == [10]
     assert fake_easy.unseen_called is False
     assert fake_easy.fetch_calls == [True]
 
-    # reset
+    
     fake_easy.limits.clear()
     fake_easy.unseen_called = False
     fake_easy.fetch_calls.clear()
 
-    # unseen_only = True
+    
     msgs = mgr.fetch_latest(mailbox="INBOX", n=5, unseen_only=True, include_attachments=False)
     assert msgs == ["msg-1", "msg-2"]
     assert fake_easy.limits == [5]
@@ -266,7 +261,7 @@ def test_flag_unflag_delete_undelete_use_correct_flags():
 
 class FakeEasyLoop:
     def __init__(self, batches):
-        self.batches = list(batches)  # list of lists of refs
+        self.batches = list(batches)  
         self.unseen_calls = 0
         self.limits = []
 
@@ -300,8 +295,8 @@ def test_mark_all_seen_loops_until_no_refs(monkeypatch):
 
     total = mgr.mark_all_seen(mailbox="INBOX", chunk_size=2)
 
-    assert total == 3  # 2 + 1
-    # add_flags called twice
+    assert total == 3  
+    
     assert len(imap.add_flags_calls) == 2
     assert imap.add_flags_calls[0] == ([refs_batch1[0], refs_batch1[1]], {mgr_mod.SEEN})
     assert imap.add_flags_calls[1] == ([refs_batch2[0]], {mgr_mod.SEEN})

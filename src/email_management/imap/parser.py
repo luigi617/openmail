@@ -1,4 +1,3 @@
-# src/email_management/imap/parser.py
 from __future__ import annotations
 
 import email

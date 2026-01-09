@@ -1,4 +1,3 @@
-# src.email_management/imap/client.py
 from __future__ import annotations
 import imaplib
 from dataclasses import dataclass

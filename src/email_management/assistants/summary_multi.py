@@ -1,9 +1,8 @@
 from typing import List, Sequence
 from pydantic import BaseModel, Field
 
-from email_management.llm.model import get_model
+from email_management.llm import get_model
 from email_management.models import EmailMessage
-from email_management.types import EmailRef
 from email_management.utils import build_email_context
 
 
