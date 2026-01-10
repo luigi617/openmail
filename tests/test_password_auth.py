@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 def test_password_auth_with_correct_info():
-    username = os.environ.get("EMAIL_USERNAME")
-    password = os.environ.get("EMAIL_PASSWORD")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
+    password = os.environ.get("TEST_EMAIL_PASSWORD")
     auth = PasswordAuth(
         username=username,
         password=password,
@@ -42,7 +42,7 @@ def test_password_auth_with_correct_info():
     assert len(messages) == 1
     
 def test_password_auth_with_wrong_password():
-    username = os.environ.get("EMAIL_USERNAME")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
     password = "1234567890"
     auth = PasswordAuth(
         username=username,
@@ -72,7 +72,7 @@ def test_password_auth_with_wrong_password():
     
 def test_password_auth_with_wrong_username():
     username = "test@gmail.com"
-    password = os.environ.get("EMAIL_PASSWORD")
+    password = os.environ.get("TEST_EMAIL_PASSWORD")
     auth = PasswordAuth(
         username=username,
         password=password,

@@ -42,10 +42,10 @@ def make_gmail_token_provider(
     return provider
 
 def test_oauth2_auth_with_correct_info():
-    username = os.environ.get("EMAIL_USERNAME")
-    client_id = os.environ.get("EMAIL_CLIENT_ID")
-    client_secret = os.environ.get("EMAIL_CLIENT_SECRET")
-    refresh_token = os.environ.get("EMAIL_REFRESH_TOKEN")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
+    client_id = os.environ.get("TEST_EMAIL_CLIENT_ID")
+    client_secret = os.environ.get("TEST_EMAIL_CLIENT_SECRET")
+    refresh_token = os.environ.get("TEST_EMAIL_REFRESH_TOKEN")
 
     token_provider = make_gmail_token_provider(
         client_id=client_id,
@@ -80,10 +80,10 @@ def test_oauth2_auth_with_correct_info():
     assert len(messages) == 1
 
 def test_oauth2_auth_with_wrong_client_id():
-    username = os.environ.get("EMAIL_USERNAME")
-    client_id = os.environ.get("EMAIL_CLIENT_ID")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
+    client_id = os.environ.get("TEST_EMAIL_CLIENT_ID")
     client_secret = "wrongsecret"
-    refresh_token = os.environ.get("EMAIL_REFRESH_TOKEN")
+    refresh_token = os.environ.get("TEST_EMAIL_REFRESH_TOKEN")
 
     token_provider = make_gmail_token_provider(
         client_id=client_id,
@@ -118,10 +118,10 @@ def test_oauth2_auth_with_wrong_client_id():
         manager.fetch_latest(n=1)
     
 def test_oauth2_auth_with_wrong_client_secret():
-    username = os.environ.get("EMAIL_USERNAME")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
     client_id = "wrong.apps.googleusercontent.com"
-    client_secret = os.environ.get("EMAIL_CLIENT_SECRET")
-    refresh_token = os.environ.get("EMAIL_REFRESH_TOKEN")
+    client_secret = os.environ.get("TEST_EMAIL_CLIENT_SECRET")
+    refresh_token = os.environ.get("TEST_EMAIL_REFRESH_TOKEN")
 
     token_provider = make_gmail_token_provider(
         client_id=client_id,
@@ -157,9 +157,9 @@ def test_oauth2_auth_with_wrong_client_secret():
     
 def test_oauth2_auth_with_wrong_username():
     username = "test@gmail.com"
-    client_id = os.environ.get("EMAIL_CLIENT_ID")
-    client_secret = os.environ.get("EMAIL_CLIENT_SECRET")
-    refresh_token = os.environ.get("EMAIL_REFRESH_TOKEN")
+    client_id = os.environ.get("TEST_EMAIL_CLIENT_ID")
+    client_secret = os.environ.get("TEST_EMAIL_CLIENT_SECRET")
+    refresh_token = os.environ.get("TEST_EMAIL_REFRESH_TOKEN")
 
     token_provider = make_gmail_token_provider(
         client_id=client_id,
@@ -194,9 +194,9 @@ def test_oauth2_auth_with_wrong_username():
         manager.fetch_latest(n=1)
     
 def test_oauth2_auth_with_wrong_refresh_token():
-    username = os.environ.get("EMAIL_USERNAME")
-    client_id = os.environ.get("EMAIL_CLIENT_SECRET")
-    client_secret = os.environ.get("EMAIL_CLIENT_SECRET")
+    username = os.environ.get("TEST_EMAIL_USERNAME")
+    client_id = os.environ.get("TEST_EMAIL_CLIENT_SECRET")
+    client_secret = os.environ.get("TEST_EMAIL_CLIENT_SECRET")
     refresh_token = "wrongrefreshtoken"
 
     token_provider = make_gmail_token_provider(
