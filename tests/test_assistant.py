@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 from email.message import EmailMessage as PyEmailMessage
 
-from email_management.email_manager import EmailManager
+from email_management import EmailManager, EmailAssistant
 import email_management.llm.model as model_mod
 from email_management.models import EmailMessage
 from email_management.types import EmailRef
@@ -171,6 +171,7 @@ def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
 def test_summarize_multi_emails_uses_llm(monkeypatch):
     _patch_fake_llm(monkeypatch)
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
+    assistant = EmailAssistant()
 
     msgs = mgr.fetch_latest(
         mailbox="INBOX",
@@ -179,7 +180,10 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
         include_attachments=True,
     )
 
-    text, info = mgr.summarize_multi_emails(msgs, model_path="fake-model")
+    text, info = assistant.summarize_multi_emails(
+        msgs,
+        model_path="fake-model",
+    )
 
     assert isinstance(text, str)
     assert text != ""
@@ -189,6 +193,7 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
 def test_summarize_single_email_uses_llm(monkeypatch):
     _patch_fake_llm(monkeypatch)
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
+    assistant = EmailAssistant()
 
     msgs = mgr.fetch_latest(
         mailbox="INBOX",
@@ -197,7 +202,10 @@ def test_summarize_single_email_uses_llm(monkeypatch):
         include_attachments=True,
     )
 
-    text, info = mgr.summarize_email(msgs[0], model_path="fake-model")
+    text, info = assistant.summarize_email(
+        msgs[0],
+        model_path="fake-model",
+    )
     assert isinstance(text, str)
     assert text != ""
     assert info["model"] == "fake-model"
@@ -206,6 +214,7 @@ def test_summarize_single_email_uses_llm(monkeypatch):
 def test_generate_reply_uses_llm(monkeypatch):
     _patch_fake_llm(monkeypatch)
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
+    assistant = EmailAssistant()
 
     msgs = mgr.fetch_latest(
         mailbox="INBOX",
@@ -214,7 +223,10 @@ def test_generate_reply_uses_llm(monkeypatch):
         include_attachments=True,
     )
 
-    text, info = mgr.generate_reply(msgs[0], model_path="fake-model")
+    text, info = assistant.generate_reply(
+        msgs[0],
+        model_path="fake-model",
+    )
 
     assert isinstance(text, str)
     assert text != ""

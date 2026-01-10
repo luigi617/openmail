@@ -1,5 +1,7 @@
-from email.message import EmailMessage
+from email.message import EmailMessage as PyEmailMessage
 from typing import Dict, List, Optional
+
+import requests
 
 from email_management.smtp import SMTPClient
 
@@ -8,6 +10,124 @@ from email_management.models import (
     UnsubscribeActionResult,
     UnsubscribeMethod,
 )
+from email_management.types import SendResult
+
+import requests
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup  # make sure bs4 is in your deps
+
+
+def _http_unsubscribe_flow(url: str, timeout: int = 10) -> tuple[bool, str]:
+    """
+    Best-effort HTTP unsubscribe:
+
+    1. GET the URL
+    2. If HTML, try to:
+       - find and submit an 'unsubscribe' / 'opt out' form
+       - otherwise, follow an 'unsubscribe' / 'opt out' link/button
+    3. Fall back to treating the initial GET as the unsubscribe action.
+
+    Returns: (ok, detail)
+    """
+    session = requests.Session()
+
+    r = session.get(url, timeout=timeout, allow_redirects=True)
+    status = r.status_code
+
+    content_type = r.headers.get("Content-Type", "")
+    if "html" not in content_type.lower():
+        ok = 200 <= status < 300
+        return ok, f"GET {r.url} -> HTTP {status} (non-HTML content)"
+
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    def _is_unsub_text(s: str) -> bool:
+        s = s.lower()
+        return (
+            "unsubscribe" in s
+            or "opt out" in s
+            or "opt-out" in s
+            or "optout" in s
+        )
+
+    unsub_form = None
+    for form in soup.find_all("form"):
+        text_parts = [
+            form.get("id", ""),
+            form.get("name", ""),
+            form.get("action", ""),
+            form.get_text(" ", strip=True),
+        ]
+        combined = " ".join(text_parts)
+        if _is_unsub_text(combined):
+            unsub_form = form
+            break
+
+    if unsub_form is not None:
+        action_attr = unsub_form.get("action") or ""
+        action_url = urljoin(r.url, action_attr) if action_attr else r.url
+        method = (unsub_form.get("method") or "post").lower()
+
+        data: dict[str, str] = {}
+        for inp in unsub_form.find_all("input"):
+            name = inp.get("name")
+            if not name:
+                continue
+
+            itype = (inp.get("type") or "text").lower()
+            value = inp.get("value", "")
+
+            if itype in ("checkbox", "radio"):
+                # Only send checked ones
+                if inp.has_attr("checked"):
+                    data[name] = value or "on"
+            else:
+                data[name] = value
+
+        for sel in unsub_form.find_all("select"):
+            name = sel.get("name")
+            if not name:
+                continue
+            selected = sel.find("option", selected=True) or sel.find("option")
+            if selected and selected.get("value") is not None:
+                data[name] = selected.get("value")
+
+        if method == "post":
+            r2 = session.post(action_url, data=data, timeout=timeout)
+        else:
+            r2 = session.get(action_url, params=data, timeout=timeout)
+
+        soup2 = BeautifulSoup(r2.text, "html.parser")
+        text = soup2.get_text(" ", strip=True)
+        text = " ".join(text.split())  # collapse extra whitespace
+
+        ok = 200 <= r2.status_code < 300
+        detail = (
+            f"{method.upper()} {action_url} -> HTTP {r2.status_code} "
+            f"(submitted unsubscribe form). "
+            f"Final confirmation page body: \n {text[:2000]}"
+        )
+        return ok, detail
+
+    unsub_link = None
+    for tag in soup.find_all(["a", "button"]):
+        text = (tag.get_text(" ", strip=True) or "")
+        if _is_unsub_text(text):
+            unsub_link = tag
+            break
+
+    if unsub_link is not None and unsub_link.name == "a":
+        href = unsub_link.get("href")
+        if href:
+            click_url = urljoin(r.url, href)
+            r2 = session.get(click_url, timeout=timeout, allow_redirects=True)
+            ok = 200 <= r2.status_code < 300
+            detail = f"GET {click_url} -> HTTP {r2.status_code} (clicked unsubscribe link)"
+            return ok, detail
+
+    ok = 200 <= status < 300
+    return ok, f"GET {r.url} -> HTTP {status} (no explicit form/link found)"
 
 
 class SubscriptionService:
@@ -20,16 +140,19 @@ class SubscriptionService:
         *,
         prefer: str = "mailto",
         from_addr: Optional[str] = None,
-        dry_run: bool = True,
     ) -> Dict[str, List[UnsubscribeActionResult]]:
         """
         Executes unsubscribe actions.
 
-        Safety:
-        - dry_run=True does NOT send emails
-        - HTTP methods are NEVER auto-called
+        Behavior:
+        - mailto: Sends an email to the unsubscribe address.
+        - http: Performs an HTTP GET request to the unsubscribe URL.
         """
-        results = {"sent": [], "http": [], "skipped": []}
+        results: Dict[str, List[UnsubscribeActionResult]] = {
+            "sent": [],
+            "http": [],
+            "skipped": [],
+        }
 
         for cand in candidates:
             method = _choose_method(cand.methods, prefer)
@@ -45,40 +168,62 @@ class SubscriptionService:
                 continue
 
             if method.kind == "mailto":
-                if dry_run:
-                    results["sent"].append(
+                msg = PyEmailMessage()
+                msg["To"] = method.value
+                msg["Subject"] = "Unsubscribe"
+                if from_addr:
+                    msg["From"] = from_addr
+                msg.set_content("Please unsubscribe me.")
+
+                try:
+                    send_res = self.smtp.send(msg)
+                except Exception as exc:
+                    send_res = SendResult(ok=False, detail=f"error: {exc!r}")
+
+
+                results["sent"].append(
+                    UnsubscribeActionResult(
+                        ref=cand.ref,
+                        method=method,
+                        sent=True,
+                        send_result=send_res,
+                    )
+                )
+
+            elif method.kind == "http":
+                url = method.value
+                try:
+                    ok, detail = _http_unsubscribe_flow(url)
+                    send_result = SendResult(
+                        ok=ok,
+                        detail=detail,
+                    )
+                    results["http"].append(
+                        UnsubscribeActionResult(
+                            ref=cand.ref,
+                            method=method,
+                            sent=ok,
+                            send_result=send_result,
+                        )
+                    )
+                except Exception as e:
+                    results["http"].append(
                         UnsubscribeActionResult(
                             ref=cand.ref,
                             method=method,
                             sent=False,
-                            note="dry-run",
-                        )
-                    )
-                else:
-                    msg = EmailMessage()
-                    msg["To"] = method.value
-                    msg["Subject"] = "unsubscribe"
-                    if from_addr:
-                        msg["From"] = from_addr
-                    msg.set_content("unsubscribe")
-
-                    res = self.smtp.send(msg)
-                    results["sent"].append(
-                        UnsubscribeActionResult(
-                            ref=cand.ref,
-                            method=method,
-                            sent=True,
-                            send_result=res,
+                            send_result=SendResult(ok=False, detail=str(e)),
+                            note="HTTP request failed",
                         )
                     )
 
-            elif method.kind == "http":
-                results["http"].append(
+            else:
+                results["skipped"].append(
                     UnsubscribeActionResult(
                         ref=cand.ref,
                         method=method,
                         sent=False,
-                        note="manual http unsubscribe",
+                        note=f"Unsupported method kind: {method.kind}",
                     )
                 )
 

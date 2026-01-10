@@ -1,3 +1,4 @@
+from typing import Any, Tuple
 from pydantic import BaseModel, Field
 from email_management.llm import get_model
 from email_management.models import EmailMessage
@@ -31,7 +32,7 @@ def llm_concise_reply_for_email(
     msg: EmailMessage,
     *,
     model_path: str,
-) -> str:
+) -> Tuple[str, dict[str, Any]]:
     """
     Generate a concise email reply using the LLM pipeline.
     """

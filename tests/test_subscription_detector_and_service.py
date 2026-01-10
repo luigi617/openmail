@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Optional
 from email.message import EmailMessage as PyEmailMessage
+
 import email_management.subscription.detector as detector_mod
 import email_management.subscription.service as service_mod
 from email_management.subscription.detector import SubscriptionDetector
@@ -11,6 +12,7 @@ from email_management.models import (
     UnsubscribeActionResult,
 )
 from email_management.types import EmailRef
+
 
 def make_unsubscribe_candidate(
     uid: int,
@@ -29,6 +31,7 @@ def make_unsubscribe_candidate(
         methods=methods,
     )
 
+
 class FakeMessage:
     """Minimal message object with attributes used by SubscriptionDetector."""
 
@@ -36,6 +39,7 @@ class FakeMessage:
         self.from_email = from_email
         self.subject = subject
         self.headers = headers
+
 
 class FakeIMAPClient:
     """Fake IMAP client for SubscriptionDetector tests."""
@@ -47,15 +51,11 @@ class FakeIMAPClient:
         self.fetch_calls = []
 
     def search(self, *, mailbox, query, limit):
-        
         self.search_calls.append((mailbox, query, limit))
-        
         return self._refs[:limit]
 
     def fetch(self, refs):
-        
         self.fetch_calls.append(list(refs))
-        
         idx_by_ref = {r: i for i, r in enumerate(self._refs)}
         return [self._msgs[idx_by_ref[r]] for r in refs]
 
@@ -87,6 +87,8 @@ class FakeSMTPClient:
 
     def send(self, msg: PyEmailMessage):
         self.sent_messages.append(msg)
+        # In your real code this could be a SendResult; here we just
+        # return a sentinel value the tests can assert on.
         return "smtp-send-result"
 
 
@@ -98,10 +100,9 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
     - search/fetch are called correctly
     - only messages with List-Unsubscribe and parsed methods become candidates
     """
-    
+    # Make detector use FakeIMAPQuery instead of the real IMAPQuery
     monkeypatch.setattr(detector_mod, "IMAPQuery", FakeIMAPQuery)
 
-    
     def fake_parse_list_unsubscribe(header_value: str) -> List[UnsubscribeMethod]:
         if "unsub1" in header_value:
             return [UnsubscribeMethod(kind="mailto", value="unsub1@example.com")]
@@ -110,12 +111,10 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
                 UnsubscribeMethod(kind="http", value="https://example.com/unsub2"),
                 UnsubscribeMethod(kind="mailto", value="unsub2@example.com"),
             ]
-        
         return []
 
     monkeypatch.setattr(detector_mod, "parse_list_unsubscribe", fake_parse_list_unsubscribe)
 
-    
     ref1 = EmailRef(uid=1)
     ref2 = EmailRef(uid=2)
     ref3 = EmailRef(uid=3)
@@ -125,13 +124,11 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
         subject="Subject 1",
         headers={"List-Unsubscribe": "<mailto:unsub1@example.com>"},
     )
-    
     msg2 = FakeMessage(
         from_email="sender2@example.com",
         subject="Subject 2",
         headers={},
     )
-    
     msg3 = FakeMessage(
         from_email="sender3@example.com",
         subject="Subject 3",
@@ -151,7 +148,7 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
         unseen_only=True,
     )
 
-    
+    # One candidate from msg1
     assert len(cands) == 1
     cand = cands[0]
     assert isinstance(cand, UnsubscribeCandidate)
@@ -162,20 +159,20 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
     assert cand.methods[0].kind == "mailto"
     assert cand.methods[0].value == "unsub1@example.com"
 
-    
+    # IMAP search usage
     assert len(imap.search_calls) == 1
     mailbox, query_obj, limit_used = imap.search_calls[0]
     assert mailbox == "NEWS"
     assert limit_used == 3
     assert isinstance(query_obj, FakeIMAPQuery)
 
-    
+    # IMAPQuery flags
     assert FakeIMAPQuery.instances, "Expected at least one FakeIMAPQuery instance"
     q = FakeIMAPQuery.instances[-1]
     assert q.unseen_called is True
     assert q.since_args == ["2025-01-01"]
 
-    
+    # fetch called once with the same refs
     assert len(imap.fetch_calls) == 1
     assert imap.fetch_calls[0] == refs[:3]
 
@@ -189,7 +186,7 @@ def test_get_header_is_case_insensitive():
 
 
 
-def test_unsubscribe_mailto_dry_run_does_not_send_email():
+def test_unsubscribe_mailto_sends_email():
     smtp = FakeSMTPClient()
     svc = SubscriptionService(smtp)
 
@@ -202,16 +199,17 @@ def test_unsubscribe_mailto_dry_run_does_not_send_email():
         [cand],
         prefer="mailto",
         from_addr="me@example.com",
-        dry_run=True,
     )
 
-    
-    assert smtp.sent_messages == []
+    # Check actual SMTP message
+    assert len(smtp.sent_messages) == 1
+    msg = smtp.sent_messages[0]
+    assert msg["To"] == "unsub@example.com"
+    assert msg["Subject"] == "Unsubscribe"  # capital U in new implementation
+    assert msg["From"] == "me@example.com"
+    assert msg.get_content().strip() == "Please unsubscribe me."
 
-    
-    assert isinstance(result, dict)
-    assert set(result.keys()) == {"sent", "http", "skipped"}
-
+    # Check results structure
     sent = result["sent"]
     assert len(sent) == 1
     r = sent[0]
@@ -219,47 +217,21 @@ def test_unsubscribe_mailto_dry_run_does_not_send_email():
     assert r.ref is cand.ref
     assert r.method.kind == "mailto"
     assert r.method.value == "unsub@example.com"
-    assert r.sent is False
-    assert r.note == "dry-run"
-    assert result["http"] == []
-    assert result["skipped"] == []
-
-
-def test_unsubscribe_mailto_sends_email_when_not_dry_run():
-    smtp = FakeSMTPClient()
-    svc = SubscriptionService(smtp)
-
-    cand = make_unsubscribe_candidate(
-        uid=1,
-        methods=[UnsubscribeMethod(kind="mailto", value="unsub@example.com")],
-    )
-
-    result = svc.unsubscribe(
-        [cand],
-        prefer="mailto",
-        from_addr="me@example.com",
-        dry_run=False,
-    )
-
-    
-    assert len(smtp.sent_messages) == 1
-    msg = smtp.sent_messages[0]
-    assert msg["To"] == "unsub@example.com"
-    assert msg["Subject"] == "unsubscribe"
-    assert msg["From"] == "me@example.com"
-    assert msg.get_content().strip() == "unsubscribe"
-
-    
-    sent = result["sent"]
-    assert len(sent) == 1
-    r = sent[0]
     assert r.sent is True
+    # FakeSMTPClient returns a simple sentinel
     assert r.send_result == "smtp-send-result"
+
     assert result["http"] == []
     assert result["skipped"] == []
 
 
-def test_unsubscribe_http_method_goes_to_http_bucket():
+def test_unsubscribe_http_method_uses_http_flow(monkeypatch):
+    """
+    HTTP unsubscribe should:
+    - not send any SMTP email
+    - call _http_unsubscribe_flow()
+    - populate result in the 'http' bucket with a SendResult
+    """
     smtp = FakeSMTPClient()
     svc = SubscriptionService(smtp)
 
@@ -268,14 +240,29 @@ def test_unsubscribe_http_method_goes_to_http_bucket():
         methods=[UnsubscribeMethod(kind="http", value="https://example.com/unsub")],
     )
 
+    called = {}
+
+    def fake_http_unsubscribe_flow(url: str, timeout: int = 10):
+        # record that we were called with the right URL & timeout
+        called["url"] = url
+        called["timeout"] = timeout
+        return True, "fake-ok-detail"
+
+    # Patch the helper so no real network calls happen
+    monkeypatch.setattr(service_mod, "_http_unsubscribe_flow", fake_http_unsubscribe_flow)
+
     result = svc.unsubscribe(
         [cand],
-        prefer="mailto",  
+        prefer="mailto",  # prefer mailto, but only http method exists
         from_addr="me@example.com",
-        dry_run=False,
     )
 
+    # No SMTP activity
     assert smtp.sent_messages == []
+
+    # Ensure our helper was used
+    assert called["url"] == "https://example.com/unsub"
+    assert called["timeout"] == 10
 
     sent = result["sent"]
     skipped = result["skipped"]
@@ -290,22 +277,73 @@ def test_unsubscribe_http_method_goes_to_http_bucket():
     assert r.ref is cand.ref
     assert r.method.kind == "http"
     assert r.method.value == "https://example.com/unsub"
+    assert r.sent is True
+    # send_result is a SendResult created from our fake helper return
+    assert r.send_result.ok is True
+    assert r.send_result.detail == "fake-ok-detail"
+
+
+def test_unsubscribe_http_flow_failure_goes_to_http_with_error(monkeypatch):
+    """
+    If the HTTP unsubscribe flow raises, the candidate should:
+    - still end up in the 'http' bucket
+    - have sent=False
+    - have send_result.ok=False with the error message in detail
+    - have note == "HTTP request failed"
+    """
+    smtp = FakeSMTPClient()
+    svc = SubscriptionService(smtp)
+
+    cand = make_unsubscribe_candidate(
+        uid=1,
+        methods=[UnsubscribeMethod(kind="http", value="https://example.com/unsub")],
+    )
+
+    def fake_http_unsubscribe_flow_raises(url: str, timeout: int = 10):
+        raise RuntimeError("boom-error")
+
+    monkeypatch.setattr(
+        service_mod, "_http_unsubscribe_flow", fake_http_unsubscribe_flow_raises
+    )
+
+    result = svc.unsubscribe(
+        [cand],
+        prefer="http",
+        from_addr="me@example.com",
+    )
+
+    # No SMTP activity
+    assert smtp.sent_messages == []
+
+    # Check buckets
+    assert result["sent"] == []
+    assert result["skipped"] == []
+    assert len(result["http"]) == 1
+
+    r = result["http"][0]
+    assert isinstance(r, UnsubscribeActionResult)
+    assert r.ref is cand.ref
+    assert r.method.kind == "http"
+    assert r.method.value == "https://example.com/unsub"
     assert r.sent is False
-    assert r.note == "manual http unsubscribe"
+    assert r.note == "HTTP request failed"
+    assert r.send_result.ok is False
+    # exact string depends on str(e) in your code
+    assert "boom-error" in r.send_result.detail
+
 
 
 def test_unsubscribe_no_supported_method_goes_to_skipped():
     smtp = FakeSMTPClient()
     svc = SubscriptionService(smtp)
 
-    
+    # No methods at all
     cand = make_unsubscribe_candidate(uid=1, methods=[])
 
     result = svc.unsubscribe(
         [cand],
         prefer="mailto",
         from_addr="me@example.com",
-        dry_run=False,
     )
 
     assert result["sent"] == []
@@ -315,7 +353,6 @@ def test_unsubscribe_no_supported_method_goes_to_skipped():
     r = result["skipped"][0]
     assert isinstance(r, UnsubscribeActionResult)
     assert r.ref is cand.ref
-    
     assert r.method is None
     assert r.sent is False
     assert r.note == "No supported unsubscribe method"

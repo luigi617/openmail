@@ -9,6 +9,9 @@ description = "API for managing your email"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
+    "python-dotenv",
+    "requests",
+    "beautifulsoup4",
     "pydantic",
     "langchain",
     "langchain-core",

@@ -2,7 +2,7 @@ import pytest
 
 from email_management.imap.query import IMAPQuery
 from email_management.email_manager import EasyIMAPQuery
-import email_management.email_manager as easy_mod
+import email_management.email_query as easy_mod
 
 
 class FakeImap:
@@ -71,7 +71,6 @@ def test_last_days_uses_since(monkeypatch):
 
     mgr = FakeEmailManager()
     easy = EasyIMAPQuery(mgr)
-
     easy.last_days(7)
     built = easy.query.build()
 
