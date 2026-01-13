@@ -1,3 +1,4 @@
+import html as _html
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage as PyEmailMessage
 from email.utils import getaddresses, formataddr
@@ -9,6 +10,17 @@ from email_management.types import EmailRef
 
 def iso_days_ago(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+
+def ensure_forward_subject(subject: str) -> str:
+    """
+    Ensure the subject is prefixed with 'Fwd:' (or 'Fw:') exactly once.
+    """
+    if not subject:
+        return "Fwd:"
+    lower = subject.lower()
+    if lower.startswith("fwd:") or lower.startswith("fw:"):
+        return subject
+    return f"Fwd: {subject}"
 
 def ensure_reply_subject(subj: Optional[str]) -> str:
     if not subj:
@@ -81,3 +93,55 @@ def build_email_context(msg: EmailMessage) -> str:
         f"{date_part}"
         f"Body:\n{body}\n"
     )
+
+def quote_original_text(original: EmailMessage) -> str:
+    """
+    Build a plain-text quoted block of the original email, e.g.:
+
+    On 2026-01-12T10:00:00+00:00, alice@example.com wrote:
+    > line 1
+    > line 2
+    """
+    if original.date:
+        date_str = original.date.isoformat()
+    else:
+        date_str = "an earlier date"
+
+    header = f"On {date_str}, {original.from_email} wrote:"
+
+    # Body to quote
+    body = original.text or ""
+    if not body and original.html:
+        body = "[original HTML body omitted]"
+
+    quoted_body_lines = [f"> {line}" for line in body.splitlines()] if body else []
+    return "\n".join([header, *quoted_body_lines])
+
+def quote_original_html(original: EmailMessage) -> str:
+    """
+    Build an HTML quoted block of the original email.
+
+    Uses <blockquote> for the body, and a short 'On ..., X wrote:' header.
+    """
+    if original.date:
+        date_str = original.date.isoformat()
+    else:
+        date_str = "an earlier date"
+
+    header_html = (
+        f"On {_html.escape(date_str)}, "
+        f"{_html.escape(original.from_email)} wrote:"
+    )
+
+    if original.html:
+        body_html = f"<blockquote>{original.html}</blockquote>"
+    elif original.text:
+        body_html = (
+            "<blockquote><pre>"
+            + _html.escape(original.text)
+            + "</pre></blockquote>"
+        )
+    else:
+        body_html = "<blockquote><em>(no body)</em></blockquote>"
+
+    return f"<p>{header_html}</p>\n{body_html}"

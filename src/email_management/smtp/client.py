@@ -2,15 +2,12 @@ from __future__ import annotations
 import smtplib
 import ssl
 from dataclasses import dataclass
-from typing import Sequence
+from email.message import EmailMessage as PyEmailMessage
 
 from email_management import SMTPConfig
 from email_management.errors import AuthError, ConfigError, SMTPError
-from email_management.models import EmailMessage
 from email_management.types import SendResult
 from email_management.auth import AuthContext
-
-from email_management.smtp.builder import build_mime_message
 
 @dataclass(frozen=True)
 class SMTPClient:
@@ -31,42 +28,40 @@ class SMTPClient:
             return self.config.username
         raise ConfigError("No from_email and no username set")
 
-    def send(self, msg: EmailMessage) -> "SendResult":
-        from_email = msg.from_email or self._from_email()
-        if not msg.to and not msg.cc and not msg.bcc:
-            raise ConfigError("No recipients")
+    def send(self, msg: PyEmailMessage) -> "SendResult":
+        # Ensure From is set
+        from_email = msg.get("From")
+        if not from_email:
+            from_email = self._from_email()
+            # Work on a copy so we don't mutate callers' object
+            msg = msg.clone() if hasattr(msg, "clone") else msg.__class__(msg)
+            msg["From"] = from_email
 
-        # create a copy with from filled (avoid mutating frozen dataclass)
-        msg2 = EmailMessage(
-            subject=msg.subject,
-            from_email=from_email,
-            to=msg.to,
-            cc=msg.cc,
-            bcc=msg.bcc,
-            text=msg.text,
-            html=msg.html,
-            attachments=list(msg.attachments),
-            date=msg.date,
-            message_id=msg.message_id,
-            headers=dict(msg.headers),
+        # Ensure there is at least one recipient
+        to_all = (
+            msg.get_all("To", [])
+            + msg.get_all("Cc", [])
+            + msg.get_all("Bcc", [])
         )
-
-        m = build_mime_message(msg2)
-        recipients: Sequence[str] = list(msg2.to) + list(msg2.cc) + list(msg2.bcc)
+        if not to_all:
+            raise ConfigError("No recipients (To/Cc/Bcc are all empty)")
 
         server = None
         try:
             server = self._connect()
-            server.send_message(m, from_addr=from_email, to_addrs=list(recipients))
-            return SendResult(ok=True, message_id=str(m["Message-ID"]))
+            # Let send_message derive recipients from headers
+            server.send_message(msg, from_addr=from_email)
+            return SendResult(ok=True, message_id=str(msg["Message-ID"]))
         except smtplib.SMTPAuthenticationError as e:
             raise AuthError(f"SMTP auth failed: {e}") from e
         except smtplib.SMTPException as e:
             raise SMTPError(f"SMTP send failed: {e}") from e
         finally:
             if server is not None:
-                try: server.quit()
-                except Exception: pass
+                try:
+                    server.quit()
+                except Exception:
+                    pass
 
     def _connect(self) -> smtplib.SMTP:
         cfg = self.config
@@ -97,3 +92,28 @@ class SMTPClient:
             raise SMTPError(f"SMTP connection failed: {e}") from e
         except OSError as e:
             raise SMTPError(f"SMTP network error: {e}") from e
+    
+    def ping(self) -> None:
+        """
+        Minimal SMTP health check.
+        Raises SMTPError if anything fails.
+        """
+        server = None
+        try:
+            server = self._connect()
+            code, msg = server.noop()
+            # RFC says 250 is OK for NOOP
+            if code != 250:
+                raise SMTPError(f"SMTP NOOP failed: {code} {msg!r}")
+        except smtplib.SMTPAuthenticationError as e:
+            raise AuthError(f"SMTP auth failed during ping: {e}") from e
+        except smtplib.SMTPException as e:
+            raise SMTPError(f"SMTP ping failed: {e}") from e
+        except OSError as e:
+            raise SMTPError(f"SMTP network error during ping: {e}") from e
+        finally:
+            if server is not None:
+                try:
+                    server.quit()
+                except Exception:
+                    pass

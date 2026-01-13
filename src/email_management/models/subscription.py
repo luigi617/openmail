@@ -25,10 +25,11 @@ class UnsubscribeCandidate:
     methods: List[UnsubscribeMethod]
 
     def __repr__(self) -> str:
+        kinds = "; ".join({m.kind for m in self.methods})
         return (
             f"UnsubscribeCandidate("
             f"from={self.from_email!r}, "
-            f"methods={"; ".join(set([m.kind for m in self.methods]))})"
+            f"methods={kinds})"
         )
 
 
@@ -41,8 +42,9 @@ class UnsubscribeActionResult:
     note: Optional[str] = None
 
     def __repr__(self) -> str:
+        detail = self.send_result.detail if self.send_result else "None"
         return (
-            f"UnsubscribeActionResult("
+            "UnsubscribeActionResult("
             f"sent={self.sent!r}, "
-            f"detail={self.send_result.detail if self.send_result else "None"})"
+            f"detail={detail!r})"
         )

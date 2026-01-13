@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel
 from email.message import EmailMessage as PyEmailMessage
 
@@ -7,26 +6,8 @@ import email_management.llm.model as model_mod
 from email_management.models import EmailMessage
 from email_management.types import EmailRef
 
-class FakeSMTPClient:
-    def __init__(self):
-        self.sent = []
-
-    def send(self, msg: PyEmailMessage):
-        self.sent.append(msg)
-        return "send-result"
-
-
-class FakeIMAPClient:
-    def __init__(self):
-        self.add_flags_calls = []
-        self.remove_flags_calls = []
-
-    def add_flags(self, refs, flags):
-        self.add_flags_calls.append((list(refs), set(flags)))
-
-    def remove_flags(self, refs, flags):
-        self.remove_flags_calls.append((list(refs), set(flags)))
-
+from tests.fake_imap_client import FakeIMAPClient
+from tests.fake_smtp_client import FakeSMTPClient
 
 
 class FakeEasyQuery:
@@ -61,11 +42,11 @@ class FakeEasyQuery:
             text="Body of second email",
         )
         return [msg1, msg2]
-    
 
 
 class FakeOutModel(BaseModel):
     value: str
+
 
 class FakePydanticChain:
     def __init__(self, data: dict):
@@ -73,12 +54,20 @@ class FakePydanticChain:
 
     def invoke(self, inputs, config=None):
         return self.data
-    
-def fake_get_base_llm_pydantic(model_name, pydantic_model=None, temperature=0.1, timeout=120):
+
+
+def fake_get_base_llm_pydantic(
+    model_name,
+    pydantic_model=None,
+    temperature: float = 0.1,
+    timeout: int = 120,
+):
     return FakePydanticChain({"value": "hello"})
+
 
 def test_get_model_with_pydantic(monkeypatch):
     import email_management.llm.model as model_mod
+
     model_mod._get_base_llm.cache_clear()
     monkeypatch.setattr(model_mod, "_get_base_llm", fake_get_base_llm_pydantic)
 
@@ -93,6 +82,7 @@ def test_get_model_with_pydantic(monkeypatch):
     out, info = run("prompt")
     assert out == {"value": "hello"}
 
+
 class FakeChain:
     def __init__(self, response):
         self.response = response
@@ -100,13 +90,22 @@ class FakeChain:
 
     def invoke(self, inputs, config=None):
         self.calls.append({"inputs": inputs, "config": config})
+
         class Out:
             def __init__(self, content):
                 self.content = content
+
         return Out(self.response)
 
-def fake_get_base_llm(model_name, pydantic_model=None, temperature=0.1, timeout=120):
+
+def fake_get_base_llm(
+    model_name,
+    pydantic_model=None,
+    temperature: float = 0.1,
+    timeout: int = 120,
+):
     return FakeChain(response="fake-answer")
+
 
 def _patch_fake_llm(monkeypatch):
     """
@@ -121,9 +120,11 @@ def _patch_fake_llm(monkeypatch):
         temperature: float = 0.1,
         timeout: int = 120,
     ):
+        # Raw string model (no pydantic) -> simple chain
         if pydantic_model is None:
             return FakeChain(response="fake raw answer")
 
+        # Pydantic models: shape fake data by class name
         name = pydantic_model.__name__
         if "Reply" in name:
             data = {"reply": "fake reply body"}
@@ -143,12 +144,14 @@ def _make_mgr_with_fake_imap(monkeypatch):
     mgr = EmailManager(smtp=smtp, imap=imap)
     fake_easy = FakeEasyQuery()
 
-    def fake_imap_query(self, mailbox="INBOX"):
+    def fake_imap_query(self, mailbox: str = "INBOX"):
         assert mailbox == "INBOX"
         return fake_easy
 
+    # Force EmailManager.imap_query(...) to return our FakeEasyQuery
     monkeypatch.setattr(EmailManager, "imap_query", fake_imap_query)
     return mgr, fake_easy
+
 
 def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
     mgr, fake_easy = _make_mgr_with_fake_imap(monkeypatch)
@@ -164,6 +167,7 @@ def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
     assert len(msgs) == 2
     assert isinstance(msgs[0], EmailMessage)
 
+    # Ensure EasyIMAPQuery-style chaining happened
     assert fake_easy.limits == [2]
     assert fake_easy.fetch_calls == [True]
 

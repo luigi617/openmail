@@ -130,17 +130,36 @@ class EasyIMAPQuery:
             IMAPQuery().flagged(),
         )
         self._q.undeleted().undraft()
-        self = self.last_days(days)
+        self.last_days(days)
         self._q.raw(triage_or.build())
         return self
 
+    def header_contains(self, name: str, needle: str) -> EasyIMAPQuery:
+        if name and needle:
+            self._q.header(name, needle)
+        return self
+    
+    def for_thread_root(self, root: EmailMessage) -> "EasyIMAPQuery":
+        """
+        Narrow this query to messages that look like they belong to the same
+        thread as `root`, based on its Message-ID.
+        """
+        if not root.message_id:
+            return self
+
+        mid = root.message_id
+
+        self._q.or_(
+            IMAPQuery().header("References", mid),
+            IMAPQuery().header("In-Reply-To", mid),
+        )
+        return self
+    
     def thread_like(self, *, subject: Optional[str] = None, participants: Sequence[str] = ()) -> EasyIMAPQuery:
         """
         Approximate "thread" matching:
         - optional SUBJECT contains `subject`
         - AND (FROM any participants OR TO any participants OR CC any participants)
-
-        Note: IMAP SEARCH doesn't have real threading; this is a practical heuristic.
         """
         if subject:
             self._q.subject(subject)

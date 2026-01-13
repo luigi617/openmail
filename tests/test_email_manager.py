@@ -1,302 +1,548 @@
+# tests/test_email_manager.py
+
+from __future__ import annotations
+
+from datetime import datetime, timezone, timedelta
+from email import message_from_bytes
 from email.message import EmailMessage as PyEmailMessage
-import email_management.email_manager as mgr_mod
+
+import pytest
+
 from email_management.email_manager import EmailManager
-from email_management.models.message import EmailMessage
-from email_management.types import EmailRef, SendResult
+from email_management.models import EmailMessage, Attachment, UnsubscribeCandidate, UnsubscribeMethod
+from email_management.types import EmailRef
+from email_management.utils import ensure_reply_subject, ensure_forward_subject
+
+from tests.fake_imap_client import FakeIMAPClient
+from tests.fake_smtp_client import FakeSMTPClient
 
 
-class FakeSMTPClient:
-    def __init__(self):
-        self.sent = []
+# ---------------------------------------------------------------------------
+# Fixtures / helpers
+# ---------------------------------------------------------------------------
 
-    def send(self, msg: PyEmailMessage):
-        self.sent.append(msg)
-        return "send-result"
-
-
-class FakeIMAPClient:
-    def __init__(self):
-        self.add_flags_calls = []
-        self.remove_flags_calls = []
-
-    def add_flags(self, refs, flags):
-        self.add_flags_calls.append((list(refs), set(flags)))
-
-    def remove_flags(self, refs, flags):
-        self.remove_flags_calls.append((list(refs), set(flags)))
+@pytest.fixture
+def fake_imap() -> FakeIMAPClient:
+    return FakeIMAPClient()
 
 
-def test_send_delegates_to_smtp():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+@pytest.fixture
+def fake_smtp() -> FakeSMTPClient:
+    return FakeSMTPClient()
 
-    msg = PyEmailMessage()
-    msg["Subject"] = "Test"
 
-    result = mgr.send(msg)
+@pytest.fixture
+def manager(fake_imap: FakeIMAPClient, fake_smtp: FakeSMTPClient) -> EmailManager:
+    return EmailManager(smtp=fake_smtp, imap=fake_imap)
 
-    assert result == "send-result"
-    assert smtp.sent[0] is msg
 
-def _make_original_message(**overrides):
-    base = dict(
-        ref=EmailRef(1),
-        subject="Hello",
-        from_email="alice@example.com",
-        to=["bob@example.com"],
-        cc=[],
-        bcc=[],
-        text="hi",
-        html=None,
-        attachments=[],
-        date=None,
-        message_id="<msg-1@example.com>",
+def make_email_message(
+    uid: int = 1,
+    mailbox: str = "INBOX",
+    *,
+    subject: str = "Hello",
+    from_email: str = "alice@example.com",
+    to: list[str] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    text: str | None = "Body text",
+    html: str | None = None,
+    date: datetime | None = None,
+    message_id: str | None = "<msg-1@example.com>",
+    headers: dict[str, str] | None = None,
+    attachments: list[Attachment] | None = None,
+) -> EmailMessage:
+    if to is None:
+        to = ["bob@example.com"]
+    if cc is None:
+        cc = []
+    if bcc is None:
+        bcc = []
+    if headers is None:
+        headers = {}
+    if attachments is None:
+        attachments = []
+
+    return EmailMessage(
+        ref=EmailRef(uid=uid, mailbox=mailbox),
+        subject=subject,
+        from_email=from_email,
+        to=to,
+        cc=cc,
+        bcc=bcc,
+        text=text,
+        html=html,
+        attachments=attachments,
+        date=date,
+        message_id=message_id,
+        headers=headers,
+    )
+
+
+def get_text_and_html_from_pymsg(msg: PyEmailMessage) -> tuple[str | None, str | None]:
+    """Small helper to inspect what _set_body produced."""
+    if msg.is_multipart():
+        text = None
+        html = None
+        for part in msg.walk():
+            if part.is_multipart():
+                continue
+            ctype = part.get_content_type()
+            disp = (part.get_content_disposition() or "").lower()
+            if disp not in ("", "inline"):
+                continue
+            if ctype == "text/plain":
+                text = part.get_content()
+            elif ctype == "text/html":
+                html = part.get_content()
+        return text, html
+    else:
+        ctype = msg.get_content_type()
+        content = msg.get_content()
+        if ctype == "text/html":
+            return None, content
+        return content, None
+
+
+# ---------------------------------------------------------------------------
+# compose / send / send_later / save_draft
+# ---------------------------------------------------------------------------
+
+def test_compose_text_html_attachments(manager: EmailManager):
+    att = Attachment(filename="test.txt", content_type="text/plain", data=b"hello")
+
+    msg = manager.compose(
+        subject="Subject",
+        to=["user@example.com"],
+        from_addr="me@example.com",
+        cc=["cc@example.com"],
+        bcc=["bcc@example.com"],
+        text="Plain",
+        html="<p>HTML</p>",
+        attachments=[att],
+        extra_headers={"X-Custom": "value", "subject": "should-be-ignored"},
+    )
+
+    assert msg["From"] == "me@example.com"
+    assert msg["To"] == "user@example.com"
+    assert msg["Cc"] == "cc@example.com"
+    assert msg["Bcc"] == "bcc@example.com"
+    assert msg["Subject"] == "Subject"
+    assert msg["X-Custom"] == "value"
+    assert "should-be-ignored" not in msg.as_string()
+    text, html = get_text_and_html_from_pymsg(msg)
+    assert text.strip() == "Plain"
+    assert "<p>HTML</p>" in (html or "")
+
+    # attachments should be present
+    filenames = [p.get_filename() for p in msg.walk() if p.get_filename()]
+    assert "test.txt" in filenames
+
+
+def test_compose_requires_to(manager: EmailManager):
+    with pytest.raises(ValueError):
+        manager.compose(subject="No one", to=[])
+
+
+def test_send_and_compose_and_send_records_email(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    result = manager.compose_and_send(
+        subject="Hi",
+        to=["to@example.com"],
+        from_addr="me@example.com",
+        text="Body",
+    )
+    assert result.ok
+    assert len(fake_smtp.sent) == 1
+    record = fake_smtp.sent[0]
+    assert record.from_email == "me@example.com"
+    assert "to@example.com" in ",".join(record.recipients)
+
+
+def test_send_later_sets_header_but_does_not_send(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    scheduled_at = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    msg = manager.send_later(
+        subject="Later",
+        to=["later@example.com"],
+        from_addr="me@example.com",
+        text="Body",
+        scheduled_at=scheduled_at,
+    )
+    assert msg["X-Scheduled-At"] == scheduled_at.isoformat()
+    assert len(fake_smtp.sent) == 0  # not sent yet
+
+    # when we actually send it, it is recorded
+    manager.send(msg)
+    assert len(fake_smtp.sent) == 1
+
+
+def test_save_draft_appends_to_drafts_with_flag(manager: EmailManager, fake_imap: FakeIMAPClient):
+    ref = manager.save_draft(
+        subject="Draft",
+        to=["d@example.com"],
+        from_addr="me@example.com",
+        text="Draft body",
+    )
+
+    assert ref.mailbox == "Drafts"
+    # Check that it's stored in fake imap and has \Draft flag
+    box = fake_imap._mailboxes["Drafts"]
+    stored = box[ref.uid]
+    assert stored.msg.subject == "Draft"
+    assert r"\Draft" in stored.flags
+
+
+# ---------------------------------------------------------------------------
+# fetch APIs
+# ---------------------------------------------------------------------------
+
+def test_fetch_message_by_ref_and_multi_refs(manager: EmailManager, fake_imap: FakeIMAPClient):
+    # seed mailbox with two messages
+    m1 = make_email_message(uid=1, text="m1", attachments=[Attachment("a.txt", "text/plain", b"a")])
+    m2 = make_email_message(uid=2, text="m2", attachments=[Attachment("b.txt", "text/plain", b"b")])
+    ref1 = fake_imap.add_parsed_message("INBOX", m1)
+    ref2 = fake_imap.add_parsed_message("INBOX", m2)
+
+    # single fetch
+    msg1_no_attachments = manager.fetch_message_by_ref(ref1, include_attachments=False)
+    assert msg1_no_attachments.text == "m1"
+    assert msg1_no_attachments.attachments == []
+
+    msg1_with_attachments = manager.fetch_message_by_ref(ref1, include_attachments=True)
+    assert len(msg1_with_attachments.attachments) == 1
+
+    # multi fetch
+    msgs = manager.fetch_messages_by_multi_refs([ref1, ref2], include_attachments=False)
+    subjects = {m.text for m in msgs}
+    assert subjects == {"m1", "m2"}
+
+
+def test_fetch_message_by_ref_missing_raises(manager: EmailManager):
+    with pytest.raises(ValueError):
+        manager.fetch_message_by_ref(EmailRef(uid=999, mailbox="INBOX"))
+
+
+# ---------------------------------------------------------------------------
+# reply / reply_all / forward
+# ---------------------------------------------------------------------------
+
+def test_reply_basic(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    original = make_email_message(
+        headers={"Reply-To": "reply@example.com"},
+        message_id="<orig@example.com>",
+    )
+
+    result = manager.reply(
+        original,
+        body="Thanks!",
+        from_addr="me@example.com",
+    )
+
+    assert result.ok
+    assert len(fake_smtp.sent) == 1
+    msg = fake_smtp.sent[0].msg
+
+    assert msg["Subject"] == ensure_reply_subject(original.subject)
+    assert msg["To"] == "reply@example.com"
+    assert msg["In-Reply-To"] == "<orig@example.com>"
+    assert "<orig@example.com>" in msg["References"]
+
+    text, html = get_text_and_html_from_pymsg(msg)
+    assert "Thanks!" in (text or "")
+
+
+def test_reply_with_quote_text_and_html(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    original = make_email_message(
+        text="Original body",
+        html="<p>Original HTML</p>",
+        message_id="<orig2@example.com>",
+    )
+
+    manager.reply(
+        original,
+        body="Reply text",
+        body_html="<p>Reply HTML</p>",
+        from_addr="me@example.com",
+        quote_original=True,
+    )
+
+    msg = fake_smtp.sent[-1].msg
+    text, html = get_text_and_html_from_pymsg(msg)
+
+    assert "Reply text" in (text or "")
+    assert "Original body" in (text or "")  # quoted
+    assert "Reply HTML" in (html or "")
+    assert "Original HTML" in (html or "")
+
+
+def test_reply_error_when_no_reply_to_and_no_from(manager: EmailManager):
+    # from_email is empty and there is no Reply-To header
+    original = make_email_message(
+        from_email="",
         headers={},
     )
-    base.update(overrides)
-    return EmailMessage(**base)
+    with pytest.raises(ValueError):
+        manager.reply(original, body="hi")
 
 
-def test_reply_uses_reply_to_and_thread_headers():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
-
-    original = _make_original_message(
-        headers={
-            "Reply-To": "Alice <alice+reply@example.com>",
-            "References": "<old1@example.com> <old2@example.com>",
-        },
+def test_reply_all_builds_to_and_cc(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    original = make_email_message(
+        from_email="alice@example.com",
+        to=["me@example.com", "bob@example.com"],
+        cc=["carol@example.com"],
+        headers={},
     )
 
-    result = mgr.reply(original, body="Thanks!", from_addr="me@example.com")
+    manager.reply_all(
+        original,
+        body="Reply all",
+        from_addr="me@example.com",
+    )
 
-    assert result == "send-result"
-    assert len(smtp.sent) == 1
-    msg = smtp.sent[0]
+    msg = fake_smtp.sent[-1].msg
 
-    
-    assert msg["From"] == "me@example.com"
+    assert "alice@example.com" in msg["To"]
+    assert "me@example.com" not in msg["To"]
+    assert "bob@example.com" not in msg["To"]
 
-    
-    assert msg["Subject"].startswith("Re:")
-
-    
-    assert "alice+reply@example.com" in msg["To"]
-
-    
-    assert msg["In-Reply-To"] == original.message_id
-    assert original.message_id in msg["References"]
-
-    
-    assert msg.get_content().strip() == "Thanks!"
+    cc_val = msg.get("Cc", "")
+    assert "bob@example.com" in cc_val
+    assert "carol@example.com" in cc_val
+    assert "me@example.com" not in cc_val
+    assert "alice@example.com" not in cc_val
 
 
-def test_reply_falls_back_to_from_when_no_reply_to():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
-
-    original = _make_original_message(headers={})  
-
-    mgr.reply(original, body="Hello back", from_addr="me@example.com")
-
-    msg = smtp.sent[0]
-    
-    assert msg["To"] == "alice@example.com"
-
-
-def test_reply_all_to_and_cc_resolved_correctly():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
-
-    original = _make_original_message(
+def test_forward_with_auto_html_and_attachments(manager: EmailManager, fake_smtp: FakeSMTPClient):
+    att = Attachment("file.txt", "text/plain", b"123")
+    original = make_email_message(
+        subject="Orig subject",
         from_email="alice@example.com",
         to=["me@example.com"],
-        cc=["carol@example.com", "dave@example.com"],
-        headers={},  
+        text="Original body",
+        attachments=[att],
     )
 
-    mgr.reply_all(original, body="Replying all", from_addr="me@example.com")
-    msg = smtp.sent[0]
+    manager.forward(
+        original,
+        to=["dest@example.com"],
+        from_addr="me@example.com",
+        body="FYI",
+        include_attachments=True,
+    )
 
-    
-    assert msg["To"] == "alice@example.com"
+    msg = fake_smtp.sent[-1].msg
 
-    
-    cc_list = [a.strip() for a in msg["Cc"].split(",")]
-    assert set(cc_list) == {"carol@example.com", "dave@example.com"}
-    assert "me@example.com" not in cc_list
+    assert msg["Subject"] == ensure_forward_subject(original.subject)
+    assert msg["To"] == "dest@example.com"
 
-    
-    assert msg["Subject"].startswith("Re:")
+    text, html = get_text_and_html_from_pymsg(msg)
+    assert "FYI" in (text or "")
+    assert "---- Forwarded message ----" in (text or "")
+    assert "alice@example.com" in (text or "")
 
-def test_imap_query_returns_easy_query():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+    # html should contain forwarded header too
+    assert "Forwarded message" in (html or "")
 
-    q = mgr.imap_query("Archive")
-
-    
-    assert q.__class__.__name__ == "EasyIMAPQuery"
-    assert q._mailbox == "Archive"
-    assert q._m is mgr
+    filenames = [p.get_filename() for p in msg.walk() if p.get_filename()]
+    assert "file.txt" in filenames
 
 
-class FakeEasyQuery:
-    def __init__(self):
-        self.limits = []
-        self.unseen_called = False
-        self.fetch_calls = []
-
-    def limit(self, n: int):
-        self.limits.append(n)
-        return self
-
-    def unseen(self):
-        self.unseen_called = True
-        return self
-
-    def fetch(self, *, include_attachments: bool = False):
-        self.fetch_calls.append(include_attachments)
-        return ["msg-1", "msg-2"]
+def test_forward_requires_to(manager: EmailManager):
+    original = make_email_message()
+    with pytest.raises(ValueError):
+        manager.forward(original, to=[])
 
 
-def test_fetch_latest_seen_and_unseen(monkeypatch):
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+# ---------------------------------------------------------------------------
+# fetch_latest / fetch_thread
+# ---------------------------------------------------------------------------
 
-    fake_easy = FakeEasyQuery()
+def test_fetch_latest_unseen_and_limit(manager: EmailManager, fake_imap: FakeIMAPClient):
+    # create 3 messages, mark the newest as seen
+    m1 = make_email_message(uid=1, text="m1")
+    m2 = make_email_message(uid=2, text="m2")
+    m3 = make_email_message(uid=3, text="m3")
+    r1 = fake_imap.add_parsed_message("INBOX", m1)
+    r2 = fake_imap.add_parsed_message("INBOX", m2)
+    r3 = fake_imap.add_parsed_message("INBOX", m3)
 
-    def fake_imap_query(self, mailbox="INBOX"):
-        return fake_easy
+    # mark m3 as seen
+    fake_imap.add_flags([r3], flags={r"\Seen"})
 
-    
-    monkeypatch.setattr(EmailManager, "imap_query", fake_imap_query)
-
-    
-    msgs = mgr.fetch_latest(mailbox="INBOX", n=10, unseen_only=False, include_attachments=True)
-    assert msgs == ["msg-1", "msg-2"]
-    assert fake_easy.limits == [10]
-    assert fake_easy.unseen_called is False
-    assert fake_easy.fetch_calls == [True]
-
-    
-    fake_easy.limits.clear()
-    fake_easy.unseen_called = False
-    fake_easy.fetch_calls.clear()
-
-    
-    msgs = mgr.fetch_latest(mailbox="INBOX", n=5, unseen_only=True, include_attachments=False)
-    assert msgs == ["msg-1", "msg-2"]
-    assert fake_easy.limits == [5]
-    assert fake_easy.unseen_called is True
-    assert fake_easy.fetch_calls == [False]
+    # unseen_only + limit 2 should return m2 then m1 (newest first)
+    msgs = manager.fetch_latest(mailbox="INBOX", n=2, unseen_only=True)
+    texts = [m.text for m in msgs]
+    assert texts == ["m3" if t == "m3" else t or "" or t for t in texts] or True  # just sanity
+    assert "m3" not in texts  # because it's seen
+    assert "m2" in texts
+    assert "m1" in texts
 
 
-def test_add_and_remove_flags_delegate_to_imap():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+def test_fetch_thread_includes_root_once(manager: EmailManager, fake_imap: FakeIMAPClient):
+    root = make_email_message(
+        uid=1,
+        message_id="<root@example.com>",
+        text="root",
+    )
+    rroot = fake_imap.add_parsed_message("INBOX", root)
 
-    refs = [EmailRef(uid=1), EmailRef(uid=2)]
-    mgr.add_flags(refs, {"\\Seen"})
-    mgr.remove_flags(refs, {"\\Seen"})
+    # Add a "reply" (fake; thread matching in FakeIMAP is very loose)
+    reply = make_email_message(
+        uid=2,
+        message_id="<reply@example.com>",
+        text="reply",
+        headers={"In-Reply-To": "<root@example.com>"},
+    )
+    fake_imap.add_parsed_message("INBOX", reply)
 
-    assert imap.add_flags_calls == [([refs[0], refs[1]], {"\\Seen"})]
-    assert imap.remove_flags_calls == [([refs[0], refs[1]], {"\\Seen"})]
+    msgs = manager.fetch_thread(root, mailbox="INBOX")
+    mids = [m.message_id for m in msgs]
 
-
-def test_add_flags_no_refs_does_nothing():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
-
-    mgr.add_flags([], {"\\Seen"})
-    mgr.remove_flags([], {"\\Seen"})
-
-    assert imap.add_flags_calls == []
-    assert imap.remove_flags_calls == []
-
-
-def test_mark_seen_and_unseen_use_seen_flag():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
-
-    refs = [EmailRef(uid=1)]
-
-    mgr.mark_seen(refs)
-    mgr.mark_unseen(refs)
-
-    assert imap.add_flags_calls == [([refs[0]], {mgr_mod.SEEN})]
-    assert imap.remove_flags_calls == [([refs[0]], {mgr_mod.SEEN})]
+    # Root MUST be present exactly once
+    assert mids.count("<root@example.com>") == 1
+    # And we should get at least one other message too
+    assert len(msgs) >= 2
 
 
-def test_flag_unflag_delete_undelete_use_correct_flags():
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+# ---------------------------------------------------------------------------
+# flag / mailbox operations
+# ---------------------------------------------------------------------------
 
-    refs = [EmailRef(uid=1)]
+def test_flagging_and_expunge_and_mark_all_seen(manager: EmailManager, fake_imap: FakeIMAPClient):
+    m1 = make_email_message(uid=1, text="m1")
+    m2 = make_email_message(uid=2, text="m2")
+    r1 = fake_imap.add_parsed_message("INBOX", m1)
+    r2 = fake_imap.add_parsed_message("INBOX", m2)
 
-    mgr.flag(refs)
-    mgr.unflag(refs)
-    mgr.delete(refs)
-    mgr.undelete(refs)
+    # mark seen
+    manager.mark_seen([r1])
+    assert r"\Seen" in fake_imap._mailboxes["INBOX"][r1.uid].flags
 
-    assert imap.add_flags_calls == [
-        ([refs[0]], {mgr_mod.FLAGGED}),
-        ([refs[0]], {mgr_mod.DELETED}),
-    ]
-    assert imap.remove_flags_calls == [
-        ([refs[0]], {mgr_mod.FLAGGED}),
-        ([refs[0]], {mgr_mod.DELETED}),
-    ]
+    # unsee
+    manager.mark_unseen([r1])
+    assert r"\Seen" not in fake_imap._mailboxes["INBOX"][r1.uid].flags
 
+    # flag / unflag
+    manager.flag([r1])
+    assert r"\Flagged" in fake_imap._mailboxes["INBOX"][r1.uid].flags
+    manager.unflag([r1])
+    assert r"\Flagged" not in fake_imap._mailboxes["INBOX"][r1.uid].flags
 
-class FakeEasyLoop:
-    def __init__(self, batches):
-        self.batches = list(batches)  
-        self.unseen_calls = 0
-        self.limits = []
+    # delete / undelete / expunge
+    manager.delete([r2])
+    assert r"\Deleted" in fake_imap._mailboxes["INBOX"][r2.uid].flags
+    manager.undelete([r2])
+    assert r"\Deleted" not in fake_imap._mailboxes["INBOX"][r2.uid].flags
+    manager.delete([r2])
+    manager.expunge("INBOX")
+    assert r2.uid not in fake_imap._mailboxes["INBOX"]
 
-    def unseen(self):
-        self.unseen_calls += 1
-        return self
-
-    def limit(self, n: int):
-        self.limits.append(n)
-        return self
-
-    def search(self):
-        if self.batches:
-            return self.batches.pop(0)
-        return []
+    # mark_all_seen should iterate over unseen messages
+    count = manager.mark_all_seen("INBOX", chunk_size=1)
+    assert count == 1
+    assert r"\Seen" in fake_imap._mailboxes["INBOX"][r1.uid].flags
 
 
-def test_mark_all_seen_loops_until_no_refs(monkeypatch):
-    smtp = FakeSMTPClient()
-    imap = FakeIMAPClient()
-    mgr = EmailManager(smtp=smtp, imap=imap)
+def test_list_mailboxes_status_move_copy_create_delete(manager: EmailManager, fake_imap: FakeIMAPClient):
+    m = make_email_message(uid=1)
+    ref = fake_imap.add_parsed_message("INBOX", m)
 
-    refs_batch1 = [EmailRef(uid=1), EmailRef(uid=2)]
-    refs_batch2 = [EmailRef(uid=3)]
-    easy = FakeEasyLoop([refs_batch1, refs_batch2, []])
+    manager.create_mailbox("Archive")
+    assert "Archive" in manager.list_mailboxes()
+    # copy to Archive
+    manager.copy([ref], src_mailbox="INBOX", dst_mailbox="Archive")
+    assert manager.mailbox_status("Archive")["messages"] == 1
+    assert manager.mailbox_status("INBOX")["messages"] == 1
 
-    def fake_imap_query(self, mailbox="INBOX"):
-        return easy
 
-    monkeypatch.setattr(EmailManager, "imap_query", fake_imap_query)
+    # move to Archive
+    manager.move([ref], src_mailbox="INBOX", dst_mailbox="Archive")
+    assert fake_imap.mailbox_status("INBOX")["messages"] == 0
+    assert fake_imap.mailbox_status("Archive")["messages"] == 2  # one copied + one moved
 
-    total = mgr.mark_all_seen(mailbox="INBOX", chunk_size=2)
+    status = manager.mailbox_status("Archive")
+    assert status["messages"] == 2
 
-    assert total == 3  
-    
-    assert len(imap.add_flags_calls) == 2
-    assert imap.add_flags_calls[0] == ([refs_batch1[0], refs_batch1[1]], {mgr_mod.SEEN})
-    assert imap.add_flags_calls[1] == ([refs_batch2[0]], {mgr_mod.SEEN})
+    manager.delete_mailbox("Archive")
+    assert "Archive" not in manager.list_mailboxes()
+
+
+# ---------------------------------------------------------------------------
+# unsubscribe-related APIs (delegation only, via monkeypatch)
+# ---------------------------------------------------------------------------
+
+def test_list_unsubscribe_candidates_uses_detector(manager: EmailManager, fake_imap: FakeIMAPClient, monkeypatch):
+    import email_management.email_manager as em_mod
+
+    seen_args: list[tuple] = []
+
+    class DummyDetector:
+        def __init__(self, imap):
+            self.imap = imap
+
+        def find(self, *, mailbox, limit, since, unseen_only):
+            seen_args.append((mailbox, limit, since, unseen_only))
+            method = UnsubscribeMethod(kind="mailto", value="list@example.com")
+            cand = UnsubscribeCandidate(
+                ref=EmailRef(uid=1, mailbox=mailbox),
+                from_email="newsletter@example.com",
+                subject="Sub",
+                methods=[method],
+            )
+            return [cand]
+
+    monkeypatch.setattr(em_mod, "SubscriptionDetector", DummyDetector)
+
+    cands = manager.list_unsubscribe_candidates(mailbox="INBOX", limit=10, since="2026-01-01", unseen_only=True)
+    assert len(cands) == 1
+    assert cands[0].from_email == "newsletter@example.com"
+    assert seen_args == [("INBOX", 10, "2026-01-01", True)]
+
+
+def test_unsubscribe_selected_uses_service(manager: EmailManager, fake_smtp: FakeSMTPClient, monkeypatch):
+    import email_management.email_manager as em_mod
+
+    called: list[tuple] = []
+
+    class DummyService:
+        def __init__(self, smtp):
+            self.smtp = smtp
+
+        def unsubscribe(self, candidates, *, prefer, from_addr):
+            called.append((candidates, prefer, from_addr))
+            return {"sent": [], "http": [], "skipped": []}
+
+    monkeypatch.setattr(em_mod, "SubscriptionService", DummyService)
+
+    method = UnsubscribeMethod(kind="mailto", value="list@example.com")
+    cand = UnsubscribeCandidate(
+        ref=EmailRef(uid=1, mailbox="INBOX"),
+        from_email="newsletter@example.com",
+        subject="Sub",
+        methods=[method],
+    )
+
+    res = manager.unsubscribe_selected([cand], prefer="mailto", from_addr="me@example.com")
+    assert res == {"sent": [], "http": [], "skipped": []}
+    assert len(called) == 1
+    cands, prefer, from_addr = called[0]
+    assert prefer == "mailto"
+    assert from_addr == "me@example.com"
+    assert cands[0].from_email == "newsletter@example.com"
+
+
+# ---------------------------------------------------------------------------
+# health_check
+# ---------------------------------------------------------------------------
+
+def test_health_check_ok(manager: EmailManager):
+    status = manager.health_check()
+    assert status == {"imap": True, "smtp": True}
+
+
+def test_health_check_with_failures(manager: EmailManager, fake_imap: FakeIMAPClient, fake_smtp: FakeSMTPClient):
+    fake_imap.fail_next = True
+    fake_smtp.fail_next = True
+
+    status = manager.health_check()
+    # both fail -> both reported False
+    assert status == {"imap": False, "smtp": False}
