@@ -1,6 +1,6 @@
 from functools import lru_cache
 import time
-from typing import Any, Callable, Dict, Tuple, Type, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Tuple, Type, Optional, TypeVar
 from time import sleep
 from random import random
 from json import JSONDecodeError
@@ -42,8 +42,11 @@ def get_model(
 
     TRANSIENT_EXC = (APIConnectionError, APITimeoutError, RateLimitError)
     PARSE_EXC = (JSONDecodeError, OutputParserException, ValidationError)
-
+    
+    history: List[Dict[str, str]] = []
+    
     def run(prompt_text: str) -> Tuple[Optional[TModel], Dict[str, Any]]:
+        nonlocal history
         infinite = (retries == -1)
         max_tries = float("inf") if infinite else max(1, retries)
         delay = base_delay
@@ -53,16 +56,24 @@ def get_model(
         attempt = 0
         while attempt < max_tries:
             try:
+                messages = history + [
+                    {"role": "user", "content": prompt_text},
+                ]
+
                 usage_cb = TokenUsageCallback()
                 t0 = time.perf_counter()
                 out = chain.invoke(
-                    {"prompt": prompt_text},
+                    {"messages": messages},
                     config={"callbacks": [usage_cb]},
                 )
                 t1 = time.perf_counter()
 
                 model_obj = out if isinstance(out, BaseModel) else pydantic_model.model_validate(out)
                 out_dict = model_obj.model_dump()
+
+                history = messages + [
+                    {"role": "assistant", "content": model_obj.model_dump_json()}
+                ]
 
                 cost_usd = compute_cost_usd(
                     model_name,

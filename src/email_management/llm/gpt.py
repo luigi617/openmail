@@ -2,7 +2,7 @@ from typing import Type
 from pydantic import BaseModel
 
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 def get_openai(
@@ -19,7 +19,9 @@ def get_openai(
     )
 
     llm_structured = base_llm.with_structured_output(pydantic_model)
-    base_prompt = ChatPromptTemplate.from_messages([("user", "{prompt}")])
+    base_prompt = ChatPromptTemplate.from_messages([
+        MessagesPlaceholder("messages")
+    ])
     chain = base_prompt | llm_structured
     
     if chain is None:
