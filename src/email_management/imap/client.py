@@ -146,8 +146,6 @@ class IMAPClient:
         # If we get here, all attempts failed due to abort
         raise IMAPError(f"IMAP connection repeatedly aborted: {last_exc}") from last_exc
 
-    # ---------- public API ----------
-
     def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List["EmailRef"]:
         def _impl(conn: imaplib.IMAP4) -> List["EmailRef"]:
             self._ensure_selected(conn, mailbox, readonly=True)
