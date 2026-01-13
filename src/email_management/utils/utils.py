@@ -180,3 +180,29 @@ def parse_list_mailbox_name(raw: bytes | str) -> str | None:
             pass
 
         return name or None
+
+
+def safe_decode(data: bytes) -> Optional[str]:
+    """
+    Try UTF-8 decode, fallback to latin-1.
+    Returns decoded string or None if decoding fails.
+    """
+    if not data:
+        return ""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            return data.decode("latin-1")
+        except Exception:
+            return None
+        
+def looks_binary(text: str) -> bool:
+    """
+    Heuristic to detect binary-like decoded content.
+    If >30% of characters are control chars or weird unicode blocks.
+    """
+    if not text:
+        return False
+    control_chars = sum(ch < " " for ch in text)  # crude check
+    return (control_chars / len(text)) > 0.3

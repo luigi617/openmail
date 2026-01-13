@@ -213,14 +213,13 @@ class EasyIMAPQuery:
     def with_attachments_hint(self) -> EasyIMAPQuery:
         """
         IMAP SEARCH cannot reliably filter 'has attachment' across servers.
-        Best-effort heuristic:
-        - look for common MIME markers in BODY (server-dependent).
         """
         hint = IMAPQuery().or_(
-            IMAPQuery().body("Content-Disposition: attachment"),
-            IMAPQuery().body("filename="),
-            IMAPQuery().body("name="),
+            IMAPQuery().header("Content-Disposition", "attachment"),
+            IMAPQuery().header("Content-Type", "name="),
+            IMAPQuery().header("Content-Type", "filename="),
         )
+
         self._q.raw(hint.build())
         return self
 
