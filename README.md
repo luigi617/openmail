@@ -34,9 +34,9 @@ pip install email-management
 | **EmailAssistant** | LLM entry point for summary, reply, task extraction, classification, etc. |
 
 Detailed component documentation is provided in:
-- `docs/EmailAssistantProfile.md`
-- `docs/EmailManager.md`
-- `docs/EasyIMAPQuery.md`
+- [`docs/EmailAssistant.md`](docs/EmailAssistant.md)
+- [`docs/EmailManager.md`](docs/EmailManager.md)
+- [`docs/EasyIMAPQuery.md`](docs/EasyIMAPQuery.md)
 
 ---
 
@@ -160,9 +160,9 @@ mgr.reply(
 
 This README covers overall usage. Focused guides are in:
 
-- `docs/EmailAssistantProfile.md`
-- `docs/EmailManager.md`
-- `docs/EasyIMAPQuery.md`
+- [`docs/EmailAssistant.md`](docs/EmailAssistant.md)
+- [`docs/EmailManager.md`](docs/EmailManager.md)
+- [`docs/EasyIMAPQuery.md`](docs/EasyIMAPQuery.md)
 
 ---
 
