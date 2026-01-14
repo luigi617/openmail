@@ -211,7 +211,7 @@ q = (
 msgs = q.fetch(include_attachments=False)
 ```
 
-See [`./EasyIMAPQuery.md`](docs/EasyIMAPQuery.md) for all query helpers.
+See [`docs/EasyIMAPQuery.md`](./EasyIMAPQuery.md) for all query helpers.
 
 ---
 
