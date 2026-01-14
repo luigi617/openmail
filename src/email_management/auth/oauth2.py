@@ -1,12 +1,9 @@
 from __future__ import annotations
-
 import base64
 from dataclasses import dataclass
 from typing import Callable
-
 from email_management.auth.base import AuthContext
 from email_management.errors import AuthError
-
 
 @dataclass(frozen=True)
 class OAuth2Auth:

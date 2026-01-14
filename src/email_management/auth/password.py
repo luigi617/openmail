@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from email_management.auth.base import AuthContext
 from email_management.errors import AuthError
 
-
 @dataclass(frozen=True)
 class PasswordAuth:
     username: str
