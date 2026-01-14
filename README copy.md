@@ -288,3 +288,5 @@ msgs = query.fetch()
 ```
 
 This allows high-level filtering without knowing IMAP syntax.
+
+```
