@@ -35,6 +35,17 @@ GEMINI_PRICES_PER_1M: Dict[str, Dict[str, float]] = {
     "gemini-2.5-flash-lite": {"input": 0.10, "cached_input": 0.01, "output": 0.40},
 }
 
+CLAUDE_PRICES_PER_1M: Dict[str, Dict[str, float]] = {
+    "claude-opus-4.5": {"input": 5.00,  "cached_input": 0.50, "output": 25.00},
+    "claude-opus-4.1": {"input": 15.00, "cached_input": 1.50, "output": 75.00},
+    "claude-opus-4": {"input": 15.00, "cached_input": 1.50, "output": 75.00},
+    "claude-sonnet-4.5": {"input": 3.00,  "cached_input": 0.30, "output": 15.00},
+    "claude-sonnet-4": {"input": 3.00,  "cached_input": 0.30, "output": 15.00},
+    "claude-haiku-4.5": {"input": 1.00,  "cached_input": 0.10, "output": 5.00},
+    "claude-haiku-3.5": {"input": 0.80,  "cached_input": 0.08, "output": 4.00},
+    "claude-haiku-3": {"input": 0.25,  "cached_input": 0.03, "output": 1.25},
+}
+
 class TokenUsageCallback(BaseCallbackHandler):
     """Collect token usage from a single LLM call."""
     def __init__(self) -> None:
@@ -65,6 +76,8 @@ def _lookup_price(provider: str, model_name: str) -> Dict[str, float]:
         return XAI_PRICES_PER_1M[model_name]
     if provider == "groq":
         return GROQ_PRICES_PER_1M[model_name]
+    if provider == "claude":
+        return CLAUDE_PRICES_PER_1M[model_name]
 
     return {"input": 0.0, "cached_input": 0.0, "output": 0.0}
 

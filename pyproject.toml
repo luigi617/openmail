@@ -18,6 +18,7 @@ dependencies = [
     "langchain-google-genai",
     "langchain-xai",
     "langchain-groq",
+    "langchain-anthropic",
 ]
 
 [project.optional-dependencies]

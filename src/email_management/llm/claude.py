@@ -1,25 +1,28 @@
 from typing import Type
 from pydantic import BaseModel
-from langchain_groq import ChatGroq
+from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-def get_groq(
+
+def get_claude(
     model_name: str,
     pydantic_model: Type[BaseModel],
     temperature: float = 0.1,
     timeout: int = 120,
 ):
 
-    base_llm = ChatGroq(
+    base_llm = ChatAnthropic(
         model=model_name,
         temperature=temperature,
         timeout=timeout,
     )
 
     llm_structured = base_llm.with_structured_output(pydantic_model)
+
     base_prompt = ChatPromptTemplate.from_messages([
         MessagesPlaceholder("messages")
     ])
+
     chain = base_prompt | llm_structured
 
     if chain is None:

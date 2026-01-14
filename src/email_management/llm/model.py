@@ -13,6 +13,7 @@ from email_management.llm.gpt import get_openai
 from email_management.llm.gemini import get_gemini
 from email_management.llm.groq import get_groq
 from email_management.llm.xai import get_xai
+from email_management.llm.claude import get_claude
 from email_management.llm.costs import TokenUsageCallback, compute_cost_usd
 
 TModel = TypeVar("TModel", bound=BaseModel)
@@ -33,7 +34,9 @@ def _get_base_llm(
         return get_xai(model_name, pydantic_model, temperature, timeout)
     if provider == "groq":
         return get_groq(model_name, pydantic_model, temperature, timeout)
-    
+    if provider == "claude":
+        return get_claude(model_name, pydantic_model, temperature, timeout)
+
     raise RuntimeError("LLM not available for the given model_name")
 
 def get_model(
