@@ -82,7 +82,7 @@ def llm_summarize_attachments_for_email(
     message: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[Dict[str, str], dict[str, Any]]:
     """
     Summarize each attachment in an email.
@@ -93,7 +93,7 @@ def llm_summarize_attachments_for_email(
 
     attachments_context = _build_attachments_context(message)
 
-    chain = get_model(provider, model_path, AttachmentSummariesSchema)
+    chain = get_model(provider, model_name, AttachmentSummariesSchema)
     result, llm_call_info = chain(
         ATTACHMENT_SUMMARY_PROMPT.format(attachments_context=attachments_context)
     )

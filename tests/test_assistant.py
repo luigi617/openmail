@@ -215,7 +215,7 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
     text, info = assistant.summarize_multi_emails(
         msgs,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert isinstance(text, str)
@@ -238,7 +238,7 @@ def test_summarize_single_email_uses_llm(monkeypatch):
     text, info = assistant.summarize_email(
         msgs[0],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert isinstance(text, str)
     assert text != ""
@@ -261,7 +261,7 @@ def test_generate_reply_uses_llm(monkeypatch):
         "reply to this email politely.",
         msgs[0],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert isinstance(text, str)
@@ -297,7 +297,7 @@ def test_summarize_multi_emails_empty_returns_default():
     text, info = assistant.summarize_multi_emails(
         [],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert text == "No emails selected."
     assert info == {}
@@ -308,7 +308,7 @@ def test_summarize_thread_empty_returns_default():
     text, info = assistant.summarize_thread(
         [],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert text == "No emails in thread."
     assert info == {}
@@ -317,11 +317,11 @@ def test_summarize_thread_empty_returns_default():
 def test_summarize_thread_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
 
-    def fake_llm_summarize_thread_emails(messages, provider, model_path):
+    def fake_llm_summarize_thread_emails(messages, provider, model_name):
         assert messages == msgs
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "thread summary", {"model": model_path}
+        assert model_name == "fake-model"
+        return "thread summary", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod, "llm_summarize_thread_emails", fake_llm_summarize_thread_emails
@@ -331,7 +331,7 @@ def test_summarize_thread_uses_llm(monkeypatch):
     text, info = assistant.summarize_thread(
         msgs,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text == "thread summary"
@@ -342,11 +342,11 @@ def test_generate_reply_suggestions_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     message = msgs[0]
 
-    def fake_llm_reply_suggestions_for_email(message_arg, provider, model_path):
+    def fake_llm_reply_suggestions_for_email(message_arg, provider, model_name):
         assert message_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return ["opt1", "opt2"], {"model": model_path}
+        assert model_name == "fake-model"
+        return ["opt1", "opt2"], {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -358,7 +358,7 @@ def test_generate_reply_suggestions_uses_llm(monkeypatch):
     suggestions, info = assistant.generate_reply_suggestions(
         message,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert suggestions == ["opt1", "opt2"]
@@ -374,15 +374,15 @@ def test_generate_reply_includes_profile_prompt(monkeypatch):
         enriched_context,
         msg_arg,
         provider,
-        model_path,
+        model_name,
         previous_reply=None,
     ):
         captured["context"] = enriched_context
         captured["previous_reply"] = previous_reply
         assert msg_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "generated reply", {"model": model_path}
+        assert model_name == "fake-model"
+        return "generated reply", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -398,7 +398,7 @@ def test_generate_reply_includes_profile_prompt(monkeypatch):
         message,
         previous_reply="old reply",
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text == "generated reply"
@@ -417,16 +417,16 @@ def test_search_emails_uses_llm(monkeypatch):
     def fake_llm_easy_imap_query_from_nl(
         user_request,
         provider,
-        model_path,
+        model_name,
         manager,
         mailbox,
     ):
         assert user_request == "find unread updates"
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
+        assert model_name == "fake-model"
         assert manager is mgr
         assert mailbox == "INBOX"
-        return fake_query, {"model": model_path}
+        return fake_query, {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -438,7 +438,7 @@ def test_search_emails_uses_llm(monkeypatch):
     query, info = assistant.search_emails(
         "find unread updates",
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
         manager=mgr,
         mailbox="INBOX",
     )
@@ -453,7 +453,7 @@ def test_classify_emails_empty_returns_default():
         [],
         classes=["support", "sales"],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert out == []
     assert info == {}
@@ -463,13 +463,13 @@ def test_classify_emails_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     classes = ["support", "sales"]
 
-    def fake_llm_classify_emails(messages, classes, provider, model_path):
+    def fake_llm_classify_emails(messages, classes, provider, model_name):
         assert messages == msgs
         assert classes == ["support", "sales"]
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
+        assert model_name == "fake-model"
         # Return one label per message, in order
-        return ["support", "sales"], {"model": model_path}
+        return ["support", "sales"], {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -482,7 +482,7 @@ def test_classify_emails_uses_llm(monkeypatch):
         msgs,
         classes=classes,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert labels == ["support", "sales"]
@@ -495,7 +495,7 @@ def test_prioritize_emails_empty_returns_default():
     out, info = assistant.prioritize_emails(
         [],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert out == []
     assert info == {}
@@ -504,12 +504,12 @@ def test_prioritize_emails_empty_returns_default():
 def test_prioritize_emails_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
 
-    def fake_llm_prioritize_emails(messages, provider, model_path):
+    def fake_llm_prioritize_emails(messages, provider, model_name):
         assert messages == msgs
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
+        assert model_name == "fake-model"
         # One score per message, in order
-        return [0.9, 0.1], {"model": model_path}
+        return [0.9, 0.1], {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -521,7 +521,7 @@ def test_prioritize_emails_uses_llm(monkeypatch):
     scores, info = assistant.prioritize_emails(
         msgs,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert scores == [0.9, 0.1]
@@ -532,11 +532,11 @@ def test_generate_follow_up_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     message = msgs[0]
 
-    def fake_llm_generate_follow_up_for_email(message_arg, provider, model_path):
+    def fake_llm_generate_follow_up_for_email(message_arg, provider, model_name):
         assert message_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "follow-up text", {"model": model_path}
+        assert model_name == "fake-model"
+        return "follow-up text", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -548,7 +548,7 @@ def test_generate_follow_up_uses_llm(monkeypatch):
     text, info = assistant.generate_follow_up(
         message,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text == "follow-up text"
@@ -558,11 +558,11 @@ def test_generate_follow_up_uses_llm(monkeypatch):
 def test_compose_email_includes_profile_prompt(monkeypatch):
     captured = {}
 
-    def fake_llm_compose_email(instructions, provider, model_path):
+    def fake_llm_compose_email(instructions, provider, model_name):
         captured["instructions"] = instructions
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "composed email", {"model": model_path}
+        assert model_name == "fake-model"
+        return "composed email", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -576,7 +576,7 @@ def test_compose_email_includes_profile_prompt(monkeypatch):
     text, info = assistant.compose_email(
         "Write a welcome email for a new customer.",
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text == "composed email"
@@ -588,12 +588,12 @@ def test_compose_email_includes_profile_prompt(monkeypatch):
 
 
 def test_rewrite_email_uses_llm(monkeypatch):
-    def fake_llm_rewrite_email(draft_text, style, provider, model_path):
+    def fake_llm_rewrite_email(draft_text, style, provider, model_name):
         assert draft_text == "hi there"
         assert style == "formal"
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "Dear Sir or Madam...", {"model": model_path}
+        assert model_name == "fake-model"
+        return "Dear Sir or Madam...", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -606,7 +606,7 @@ def test_rewrite_email_uses_llm(monkeypatch):
         "hi there",
         "formal",
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text.startswith("Dear")
@@ -619,14 +619,14 @@ def test_translate_email_uses_llm(monkeypatch):
         target_language,
         source_language,
         provider,
-        model_path,
+        model_name,
     ):
         assert text == "hola"
         assert target_language == "en"
         assert source_language is None
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return "hello", {"model": model_path}
+        assert model_name == "fake-model"
+        return "hello", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -639,7 +639,7 @@ def test_translate_email_uses_llm(monkeypatch):
         "hola",
         "en",
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert text == "hello"
@@ -651,7 +651,7 @@ def test_extract_tasks_empty_returns_default():
     tasks, info = assistant.extract_tasks(
         [],
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
     assert tasks == []
     assert info == {}
@@ -660,12 +660,12 @@ def test_extract_tasks_empty_returns_default():
 def test_extract_tasks_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
 
-    def fake_llm_extract_tasks_from_emails(messages, provider, model_path):
+    def fake_llm_extract_tasks_from_emails(messages, provider, model_name):
         assert messages == msgs
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
+        assert model_name == "fake-model"
         # We don't care about exact Task type here, just that we pass it through.
-        return ["task-1", "task-2"], {"model": model_path}
+        return ["task-1", "task-2"], {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -677,7 +677,7 @@ def test_extract_tasks_uses_llm(monkeypatch):
     tasks, info = assistant.extract_tasks(
         msgs,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert tasks == ["task-1", "task-2"]
@@ -688,11 +688,11 @@ def test_summarize_attachments_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     message = msgs[0]
 
-    def fake_llm_summarize_attachments_for_email(message_arg, provider, model_path):
+    def fake_llm_summarize_attachments_for_email(message_arg, provider, model_name):
         assert message_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return {"file.pdf": "summary of file"}, {"model": model_path}
+        assert model_name == "fake-model"
+        return {"file.pdf": "summary of file"}, {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -704,7 +704,7 @@ def test_summarize_attachments_uses_llm(monkeypatch):
     summaries, info = assistant.summarize_attachments(
         message,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert summaries == {"file.pdf": "summary of file"}
@@ -746,11 +746,11 @@ def test_detect_phishing_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     message = msgs[0]
 
-    def fake_llm_detect_phishing_for_email(message_arg, provider, model_path):
+    def fake_llm_detect_phishing_for_email(message_arg, provider, model_name):
         assert message_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return True, {"model": model_path}
+        assert model_name == "fake-model"
+        return True, {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -762,7 +762,7 @@ def test_detect_phishing_uses_llm(monkeypatch):
     is_phishing, info = assistant.detect_phishing(
         message,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert is_phishing is True
@@ -773,11 +773,11 @@ def test_evaluate_sender_trust_uses_llm(monkeypatch):
     msgs = _make_sample_messages()
     message = msgs[0]
 
-    def fake_llm_evaluate_sender_trust_for_email(message_arg, provider, model_path):
+    def fake_llm_evaluate_sender_trust_for_email(message_arg, provider, model_name):
         assert message_arg == message
         assert provider == "fake-provider"
-        assert model_path == "fake-model"
-        return 0.75, {"model": model_path}
+        assert model_name == "fake-model"
+        return 0.75, {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -789,7 +789,7 @@ def test_evaluate_sender_trust_uses_llm(monkeypatch):
     score, info = assistant.evaluate_sender_trust(
         message,
         provider="fake-provider",
-        model_path="fake-model",
+        model_name="fake-model",
     )
 
     assert score == 0.75

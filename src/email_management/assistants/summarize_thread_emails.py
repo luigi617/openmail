@@ -35,7 +35,7 @@ def llm_summarize_thread_emails(
     messages: Sequence[EmailMessage],
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[str, dict[str, Any]]:
     """
     Summarize a sequence of emails representing a thread.
@@ -48,7 +48,7 @@ def llm_summarize_thread_emails(
 
     thread_context = "\n".join(parts)
 
-    chain = get_model(provider, model_path, ThreadSummarySchema)
+    chain = get_model(provider, model_name, ThreadSummarySchema)
     result, llm_call_info = chain(
         THREAD_SUMMARY_PROMPT.format(thread_context=thread_context)
     )

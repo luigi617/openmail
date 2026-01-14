@@ -35,13 +35,13 @@ def llm_concise_reply_for_email(
     msg: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
     previous_reply: Optional[str] = None,
 ) -> Tuple[str, dict[str, Any]]:
     """
     Generate a concise email reply using the LLM pipeline.
     """
-    chain = get_model(provider, model_path, EmailReplySchema)
+    chain = get_model(provider, model_name, EmailReplySchema)
     email_context = build_email_context(msg)
     result, llm_call_info = chain(
         EMAIL_REPLY_PROMPT.format(

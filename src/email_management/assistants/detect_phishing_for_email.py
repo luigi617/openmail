@@ -45,12 +45,12 @@ def llm_detect_phishing_for_email(
     msg: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[bool, dict[str, Any]]:
     """
     Detect whether an email is likely to be a phishing attempt.
     """
-    chain = get_model(provider, model_path, PhishingDetectionSchema)
+    chain = get_model(provider, model_name, PhishingDetectionSchema)
     email_context = build_email_context(msg)
 
     prompt = PHISHING_DETECTION_PROMPT.format(

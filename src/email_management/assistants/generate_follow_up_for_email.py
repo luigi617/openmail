@@ -36,12 +36,12 @@ def llm_generate_follow_up_for_email(
     msg: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[str, dict[str, Any]]:
     """
     Generate a follow-up email body for a previous message.
     """
-    chain = get_model(provider, model_path, FollowUpEmailSchema)
+    chain = get_model(provider, model_name, FollowUpEmailSchema)
     email_context = build_email_context(msg)
 
     prompt = FOLLOW_UP_PROMPT.format(

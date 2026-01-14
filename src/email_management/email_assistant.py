@@ -71,12 +71,12 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[List[str], Dict[str, Any]]:
         return llm_reply_suggestions_for_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def generate_reply(
@@ -86,7 +86,7 @@ class EmailAssistant:
         *,
         previous_reply: Optional[str] = None,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         persona = self.profile.generate_prompt() if self.profile else ""
         enriched_context = f"{persona}\n\n{reply_context}".strip()
@@ -95,7 +95,7 @@ class EmailAssistant:
             enriched_context,
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
             previous_reply=previous_reply,
         )
     
@@ -104,12 +104,12 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         return llm_summarize_single_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def summarize_multi_emails(
@@ -117,7 +117,7 @@ class EmailAssistant:
         messages: Sequence[EmailMessage],
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         
         if not messages:
@@ -126,7 +126,7 @@ class EmailAssistant:
         return llm_summarize_many_emails(
             messages,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def summarize_thread(
@@ -134,7 +134,7 @@ class EmailAssistant:
         thread_messages: Sequence[EmailMessage],
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Summarize an email conversation thread (ordered sequence of messages).
@@ -146,7 +146,7 @@ class EmailAssistant:
         return llm_summarize_thread_emails(
             thread_messages,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def search_emails(
@@ -154,7 +154,7 @@ class EmailAssistant:
         user_request: str,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
         manager: EmailManager,
         mailbox: str = "INBOX",
     ) -> Tuple[EasyIMAPQuery, Dict[str, Any]]:
@@ -166,7 +166,7 @@ class EmailAssistant:
         return llm_easy_imap_query_from_nl(
             user_request,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
             manager=manager,
             mailbox=mailbox,
         )
@@ -177,7 +177,7 @@ class EmailAssistant:
         classes: Sequence[str],
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[List[str], Dict[str, Any]]:
         """
         Classify multiple emails at once.
@@ -189,7 +189,7 @@ class EmailAssistant:
             messages,
             classes=classes,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def prioritize_emails(
@@ -197,7 +197,7 @@ class EmailAssistant:
         messages: Sequence[EmailMessage],
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[List[float], Dict[str, Any]]:
         """
         Assign a priority score to multiple emails at once.
@@ -208,7 +208,7 @@ class EmailAssistant:
         return llm_prioritize_emails(
             messages,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def generate_follow_up(
@@ -216,7 +216,7 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate a follow-up email to a previous message
@@ -225,7 +225,7 @@ class EmailAssistant:
         return llm_generate_follow_up_for_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def compose_email(
@@ -233,7 +233,7 @@ class EmailAssistant:
         instructions: str,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Compose a new email (subject + body or body only) from natural language instructions
@@ -245,7 +245,7 @@ class EmailAssistant:
         return llm_compose_email(
             enriched_instructions,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def rewrite_email(
@@ -254,7 +254,7 @@ class EmailAssistant:
         style: str,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Rewrite an email draft according to a requested style.
@@ -263,7 +263,7 @@ class EmailAssistant:
             draft_text,
             style,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def translate_email(
@@ -272,7 +272,7 @@ class EmailAssistant:
         target_language: str,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
         source_language: Optional[str] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """
@@ -286,7 +286,7 @@ class EmailAssistant:
             target_language=target_language,
             source_language=source_language,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def extract_tasks(
@@ -294,7 +294,7 @@ class EmailAssistant:
         messages: Sequence[EmailMessage],
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[List[Task], Dict[str, Any]]:
         """
         Extract action items / tasks from one or more emails, using a generic
@@ -307,7 +307,7 @@ class EmailAssistant:
         return llm_extract_tasks_from_emails(
             messages,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def summarize_attachments(
@@ -315,7 +315,7 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[Dict[str, str], Dict[str, Any]]:
         """
         Summarize each attachment in an email.
@@ -323,7 +323,7 @@ class EmailAssistant:
         return llm_summarize_attachments_for_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
     
     def detect_missing_attachment(self, message: PyEmailMessage) -> bool:
@@ -377,7 +377,7 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Detect whether an email is likely to be a phishing attempt.
@@ -385,7 +385,7 @@ class EmailAssistant:
         return llm_detect_phishing_for_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )
 
     def evaluate_sender_trust(
@@ -393,7 +393,7 @@ class EmailAssistant:
         message: EmailMessage,
         *,
         provider: str,
-        model_path: str,
+        model_name: str,
     ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate how trustworthy the sender looks based on:
@@ -404,5 +404,5 @@ class EmailAssistant:
         return llm_evaluate_sender_trust_for_email(
             message,
             provider=provider,
-            model_path=model_path,
+            model_name=model_name,
         )

@@ -103,7 +103,7 @@ def llm_extract_tasks_from_emails(
     messages: Sequence[EmailMessage],
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[List[Task], dict[str, Any]]:
     """
     Extract tasks from one or more emails using a generic task structure.
@@ -116,7 +116,7 @@ def llm_extract_tasks_from_emails(
 
     email_context = "\n".join(parts)
 
-    chain = get_model(provider, model_path, TaskExtractionSchema)
+    chain = get_model(provider, model_name, TaskExtractionSchema)
     result, llm_call_info = chain(
         TASK_EXTRACTION_PROMPT.format(email_context=email_context)
     )

@@ -54,7 +54,7 @@ def llm_prioritize_emails(
     messages: Sequence[EmailMessage],
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[List[float], Dict[str, Any]]:
     """
     Assign a priority score to multiple emails at once.
@@ -76,7 +76,7 @@ def llm_prioritize_emails(
         email_blocks=email_blocks,
     )
 
-    chain = get_model(provider, model_path, EmailPrioritySchema)
+    chain = get_model(provider, model_name, EmailPrioritySchema)
     result, llm_call_info = chain(prompt)
 
     # Prepare an output list aligned to messages order

@@ -710,7 +710,7 @@ def llm_easy_imap_query_from_nl(
     user_request: str,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
     manager: Optional[EmailManager],
     mailbox: str = "INBOX",
 ) -> Tuple[EasyIMAPQuery, Dict[str, Any]]:
@@ -721,7 +721,7 @@ def llm_easy_imap_query_from_nl(
     Returns:
         (easy_query, llm_call_info)
     """
-    chain = get_model(provider, model_path, IMAPLowLevelPlan)
+    chain = get_model(provider, model_name, IMAPLowLevelPlan)
     result, llm_call_info = chain(
         EMAIL_IMAP_QUERY_PROMPT.format(user_request=user_request)
     )

@@ -43,12 +43,12 @@ def llm_classify_emails(
     *,
     classes: Sequence[str],
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[Dict[EmailMessage, str], Dict[str, Any]]:
     if not messages:
         return [], {}
 
-    chain = get_model(provider, model_path, EmailClassificationSchema)
+    chain = get_model(provider, model_name, EmailClassificationSchema)
 
     # synthetic IDs: e1, e2, ...
     id_list = [f"e{i + 1}" for i in range(len(messages))]

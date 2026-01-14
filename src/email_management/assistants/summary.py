@@ -27,12 +27,12 @@ def llm_summarize_single_email(
     msg: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Generate a concise email reply using the LLM pipeline.
     """
-    chain = get_model(provider, model_path, EmailSummarySchema)
+    chain = get_model(provider, model_name, EmailSummarySchema)
     email_context = build_email_context(msg)
     result, llm_call_info = chain(
         EMAIL_SUMMARY_PROMPT.format(

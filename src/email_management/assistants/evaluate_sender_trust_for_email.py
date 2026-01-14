@@ -43,12 +43,12 @@ def llm_evaluate_sender_trust_for_email(
     msg: EmailMessage,
     *,
     provider: str,
-    model_path: str,
+    model_name: str,
 ) -> Tuple[float, dict[str, Any]]:
     """
     Evaluate how trustworthy the sender appears based on the email.
     """
-    chain = get_model(provider, model_path, SenderTrustSchema)
+    chain = get_model(provider, model_name, SenderTrustSchema)
     email_context = build_email_context(msg)
 
     prompt = SENDER_TRUST_PROMPT.format(
