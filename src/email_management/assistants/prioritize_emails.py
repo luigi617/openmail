@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, Dict, List, Sequence, Tuple
 from pydantic import BaseModel, Field
 
@@ -62,11 +63,9 @@ def llm_prioritize_emails(
     if not messages:
         return [], {}
 
-    # Create stable IDs for each message: e1, e2, ...
     id_list = [f"e{i + 1}" for i in range(len(messages))]
     id_to_index = {id_: i for i, id_ in enumerate(id_list)}
 
-    # Build prompt email blocks
     email_blocks = "\n\n".join(
         f"Email ID: {email_id}\n{build_email_context(msg)}"
         for email_id, msg in zip(id_list, messages)
@@ -79,10 +78,8 @@ def llm_prioritize_emails(
     chain = get_model(provider, model_name, EmailPrioritySchema)
     result, llm_call_info = chain(prompt)
 
-    # Prepare an output list aligned to messages order
+    # Preserve order of input messages
     scores: List[float] = [0.0] * len(messages)
-
-    # Fill scores by placing them at the appropriate index
     for item in result.items:
         idx = id_to_index.get(item.id)
         if idx is not None:

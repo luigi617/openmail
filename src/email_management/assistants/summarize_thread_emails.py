@@ -1,6 +1,6 @@
+from __future__ import annotations
 from typing import Any, Tuple, List, Sequence
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.models import EmailMessage
 from email_management.utils import build_email_context
@@ -40,7 +40,7 @@ def llm_summarize_thread_emails(
     """
     Summarize a sequence of emails representing a thread.
     """
-    # Build a combined context from all messages in chronological order.
+
     parts: List[str] = []
     for idx, msg in enumerate(messages, start=1):
         ctx = build_email_context(msg)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, Optional, Tuple
 from pydantic import BaseModel, Field
 from email_management.llm import get_model

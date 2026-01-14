@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional, Tuple
+from __future__ import annotations
+from typing import Any, Dict, Tuple
 from pydantic import BaseModel, Field
 from email_management.llm import get_model
 from email_management.models import EmailMessage
@@ -17,11 +18,8 @@ Email context:
 {email_context}
 """
 
-
-
 class EmailSummarySchema(BaseModel):
     summary: str = Field(description="A concise summary of a single email.")
-
 
 def llm_summarize_single_email(
     msg: EmailMessage,

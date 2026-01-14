@@ -1,19 +1,12 @@
 from __future__ import annotations
-
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
-
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.email_query import EasyIMAPQuery
 from email_management.imap import IMAPQuery
 
 if TYPE_CHECKING:
     from email_management.email_manager import EmailManager
-    from email_management.models import EmailMessage
-
-
 
 class HeaderFilter(BaseModel):
     name: str = Field(
@@ -191,7 +184,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # dates (ISO "YYYY-MM-DD")
     since: Optional[str] = Field(
         default=None,
         description=(
@@ -235,7 +227,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # flags/status
     flags: IMAPFlagsPlan = Field(
         default_factory=IMAPFlagsPlan,
         description=(
@@ -260,7 +251,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # keyword / unkeyword
     keyword: List[str] = Field(
         default_factory=list,
         description=(
@@ -276,7 +266,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # UID filters (each entry can be '123' or '1:100')
     uid: List[str] = Field(
         default_factory=list,
         description=(
@@ -285,7 +274,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # excludes
     excludes: IMAPExcludePlan = Field(
         default_factory=IMAPExcludePlan,
         description=(
@@ -326,7 +314,6 @@ class IMAPClauses(BaseModel):
         ),
     )
 
-    # clause-local raw tokens applied at IMAPQuery level
     raw_tokens: List[str] = Field(
         default_factory=list,
         description=(
@@ -339,9 +326,6 @@ class IMAPClauses(BaseModel):
 class IMAPLowLevelPlan(BaseModel):
     """
     A full low-level search plan expressed in Disjunctive Normal Form (DNF).
-
-    The meaning is:
-        clause_1 OR clause_2 OR ... OR clause_n
     """
 
     clauses: List[IMAPClauses] = Field(
@@ -367,11 +351,6 @@ class IMAPLowLevelPlan(BaseModel):
             "debugging or logging but not used for filtering."
         ),
     )
-
-
-# ======================================================================
-# Prompt
-# ======================================================================
 
 EMAIL_IMAP_QUERY_PROMPT = """
 You are an assistant that translates NATURAL LANGUAGE email-search requests
@@ -516,15 +495,9 @@ User request:
 """
 
 
-# ======================================================================
-# Clause application helpers
-# ======================================================================
-
-
 def _apply_imap_clauses(q: IMAPQuery, c: IMAPClauses) -> None:
     """
     Apply the low-level IMAPQuery part of one clause to an IMAPQuery instance.
-    (This ignores the clause-local EasyIMAPQuery helper flags.)
     """
 
     # basic positive fields
@@ -636,7 +609,6 @@ def _apply_clause_to_easy(easy: EasyIMAPQuery, c: IMAPClauses) -> None:
     - Then, low-level IMAPQuery primitives onto easy.query.
     """
 
-    # Clause-local EasyIMAPQuery helpers (the four booleans)
     if c.use_newsletters:
         easy.newsletters()
 
@@ -649,7 +621,6 @@ def _apply_clause_to_easy(easy: EasyIMAPQuery, c: IMAPClauses) -> None:
     if c.use_with_attachments_hint:
         easy.with_attachments_hint()
 
-    # Now apply low-level primitives onto the underlying IMAPQuery
     _apply_imap_clauses(easy.query, c)
 
 
@@ -665,7 +636,6 @@ def _apply_low_level_to_easy_query(easy: EasyIMAPQuery, low: IMAPLowLevelPlan) -
     """
 
     if not low.clauses:
-        # no constraints
         pass
     elif len(low.clauses) == 1:
         _apply_clause_to_easy(easy, low.clauses[0])
@@ -681,29 +651,10 @@ def _apply_low_level_to_easy_query(easy: EasyIMAPQuery, low: IMAPLowLevelPlan) -
             _apply_clause_to_easy(clause_easy, clause)
             subqueries.append(sub_q)
 
-        # OR all sub-queries into the main IMAPQuery
         easy.query.or_(*subqueries)
 
-    # plan-global raw tokens (outside the OR structure)
     if low.raw_tokens:
         easy.raw(*low.raw_tokens)
-
-
-# ======================================================================
-# High-level API: NL -> EasyIMAPQuery using DNF clauses
-# ======================================================================
-
-
-@dataclass
-class _NullManager:
-    """
-    Minimal stub so the function can still be called with manager=None if
-    you only want the query structure without a real EmailManager.
-    """
-
-    def imap_query(self, mailbox: str) -> EasyIMAPQuery:
-        # This allows building the query shape even without a real EmailManager.
-        return EasyIMAPQuery(manager=self, mailbox=mailbox)
 
 
 def llm_easy_imap_query_from_nl(
@@ -717,9 +668,6 @@ def llm_easy_imap_query_from_nl(
     """
     Use an LLM to translate a natural-language request into an EasyIMAPQuery,
     where the final LLM output schema is IMAPLowLevelPlan (a list of DNF clauses).
-
-    Returns:
-        (easy_query, llm_call_info)
     """
     chain = get_model(provider, model_name, IMAPLowLevelPlan)
     result, llm_call_info = chain(

@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Sequence, Tuple, Optional
+from __future__ import annotations
+from typing import Any, List, Sequence, Tuple, Optional
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.models import EmailMessage
 from email_management.utils import build_email_context
@@ -108,7 +108,6 @@ def llm_extract_tasks_from_emails(
     """
     Extract tasks from one or more emails using a generic task structure.
     """
-    # Combine contexts from all messages.
     parts: List[str] = []
     for idx, msg in enumerate(messages, start=1):
         ctx = build_email_context(msg)
@@ -121,7 +120,6 @@ def llm_extract_tasks_from_emails(
         TASK_EXTRACTION_PROMPT.format(email_context=email_context)
     )
 
-    # Return as list of plain dicts so callers don't depend on Pydantic models.
     tasks: List[Task] = []
     for t in result.tasks:
         tasks.append(

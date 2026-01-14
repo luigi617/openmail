@@ -234,9 +234,9 @@ class EmailAssistant:
         *,
         provider: str,
         model_name: str,
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[str, str, Dict[str, Any]]:
         """
-        Compose a new email (subject + body or body only) from natural language instructions
+        Compose a new email (subject and body) from natural language instructions
         or bullet points.
         """
         persona = self.profile.generate_prompt() if self.profile else ""

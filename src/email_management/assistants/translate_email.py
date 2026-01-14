@@ -1,6 +1,6 @@
+from __future__ import annotations
 from typing import Any, Optional, Tuple
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 
 
@@ -20,12 +20,10 @@ Text to translate:
 {text}
 """
 
-
 class TranslateEmailSchema(BaseModel):
     translated_text: str = Field(
         description="The translated text in the target language."
     )
-
 
 def llm_translate_email(
     text: str,

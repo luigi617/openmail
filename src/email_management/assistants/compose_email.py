@@ -1,8 +1,7 @@
+from __future__ import annotations
 from typing import Any, Tuple
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
-
 
 COMPOSE_EMAIL_PROMPT = """
 You are an assistant that drafts professional emails.
@@ -18,18 +17,16 @@ User instructions:
 {instructions}
 """
 
-
 class ComposeEmailSchema(BaseModel):
     subject: str = Field(description="Subject line for the email.")
     body: str = Field(description="Full email body, ready to send.")
-
 
 def llm_compose_email(
     instructions: str,
     *,
     provider: str,
     model_name: str,
-) -> Tuple[str, dict[str, Any]]:
+) -> Tuple[str, str, dict[str, Any]]:
     """
     Compose a new email from natural-language instructions.
     """
@@ -38,5 +35,6 @@ def llm_compose_email(
         COMPOSE_EMAIL_PROMPT.format(instructions=instructions)
     )
 
-    composed = f"Subject: {result.subject.strip()}\n\n{result.body.strip()}"
-    return composed, llm_call_info
+    subject = result.subject.strip()
+    body = result.body.strip()
+    return subject, body, llm_call_info

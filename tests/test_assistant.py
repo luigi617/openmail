@@ -562,7 +562,7 @@ def test_compose_email_includes_profile_prompt(monkeypatch):
         captured["instructions"] = instructions
         assert provider == "fake-provider"
         assert model_name == "fake-model"
-        return "composed email", {"model": model_name}
+        return "subject", "composed email", {"model": model_name}
 
     monkeypatch.setattr(
         assistants_mod,
@@ -573,12 +573,13 @@ def test_compose_email_includes_profile_prompt(monkeypatch):
     profile = EmailAssistantProfile(name="Sam", tone="friendly")
     assistant = EmailAssistant(profile=profile)
 
-    text, info = assistant.compose_email(
+    subject, text, info = assistant.compose_email(
         "Write a welcome email for a new customer.",
         provider="fake-provider",
         model_name="fake-model",
     )
 
+    assert subject == "subject"
     assert text == "composed email"
     assert info["model"] == "fake-model"
     instr = captured["instructions"]

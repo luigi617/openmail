@@ -1,6 +1,6 @@
+from __future__ import annotations
 from typing import Any, Tuple
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.models import EmailMessage
 from email_management.utils import build_email_context
@@ -25,7 +25,6 @@ Instructions:
 Email context:
 {email_context}
 """
-
 
 class PhishingDetectionSchema(BaseModel):
     is_phishing: bool = Field(

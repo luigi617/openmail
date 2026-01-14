@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
+from typing import Any, Dict, List, Tuple
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.models import EmailMessage
 from email_management.utils import safe_decode, looks_binary
@@ -10,7 +10,7 @@ ATTACHMENT_SUMMARY_PROMPT = """
 You are an assistant that summarizes file attachments from an email.
 
 Instructions:
-- For each attachment, provide a concise summary (3–6 sentences).
+- For each attachment, provide a concise summary (3-6 sentences).
 - Focus on key points, decisions, and any important data.
 - Do not copy large passages verbatim.
 - If the content is not meaningful (e.g. very short or empty), say so briefly.
@@ -21,7 +21,6 @@ Attachments:
 {attachments_context}
 """
 
-
 class AttachmentSummarySchema(BaseModel):
     filename: str = Field(description="Filename of the attachment.")
     summary: str = Field(description="Concise summary of the attachment's contents.")
@@ -31,8 +30,6 @@ class AttachmentSummariesSchema(BaseModel):
     attachments: List[AttachmentSummarySchema] = Field(
         description="List of summaries for each attachment."
     )
-
-
 
 def _build_attachments_context(message: EmailMessage) -> str:
     """

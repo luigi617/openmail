@@ -1,6 +1,6 @@
+from __future__ import annotations
 from typing import Any, Dict, List, Sequence, Tuple
 from pydantic import BaseModel, Field
-
 from email_management.llm import get_model
 from email_management.models import EmailMessage
 from email_management.utils import build_email_context
@@ -24,7 +24,6 @@ Emails:
 {email_blocks}
 """
 
-
 class EmailClassificationItem(BaseModel):
     id: str = Field(description="Opaque ID that identifies one email.")
     label: str = Field(description="Chosen class label for this email.")
@@ -37,7 +36,6 @@ class EmailClassificationSchema(BaseModel):
         )
     )
 
-
 def llm_classify_emails(
     messages: Sequence[EmailMessage],
     *,
@@ -45,33 +43,33 @@ def llm_classify_emails(
     provider: str,
     model_name: str,
 ) -> Tuple[Dict[EmailMessage, str], Dict[str, Any]]:
+    """
+    Classify a batch of emails into one of the provided classes.
+    """
     if not messages:
         return [], {}
 
     chain = get_model(provider, model_name, EmailClassificationSchema)
 
-    # synthetic IDs: e1, e2, ...
     id_list = [f"e{i + 1}" for i in range(len(messages))]
     id_to_index = {id_: i for i, id_ in enumerate(id_list)}
 
     classes_str = ", ".join(classes)
 
-    # context blocks with IDs
     email_blocks = "\n\n".join(
         f"Email ID: {email_id}\n{build_email_context(msg)}"
         for email_id, msg in zip(id_list, messages)
     )
 
-    prompt = CLASSIFY_EMAILS_PROMPT.format(
-        classes=classes_str,
-        email_blocks=email_blocks,
+    result, llm_call_info = chain(
+        CLASSIFY_EMAILS_PROMPT.format(
+            classes=classes_str,
+            email_blocks=email_blocks,
+        )
     )
 
-    result, llm_call_info = chain(prompt)
-
-    # prepare output aligned to input order
+    # preserve order of input messages
     labels: List[str] = [""] * len(messages)
-
     for item in result.items:
         idx = id_to_index.get(item.id)
         if idx is not None:
