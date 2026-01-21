@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Email Management</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Email Management</h1>
+    <div class="header-right">
+      <span id="mailbox-name">INBOX</span>
+      <button id="refresh-btn" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT: mailbox info + filters + legend -->
+    <aside class="sidebar">
+      <section class="card">
+        <h2>Mailbox</h2>
+        <div id="mailbox-info">
+          <p><strong>Current mailbox:</strong> <span id="folder-label">INBOX</span></p>
+          <p><strong>Total emails:</strong> <span id="total-count">0</span></p>
+          <p><strong>Current filter:</strong> <span id="current-filter">All senders</span></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Mailboxes</h2>
+        <div id="mailbox-list" class="mailbox-list">
+          <!-- Filled by JS from /api/emails/mailbox -->
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Filters</h2>
+        <label class="block-label">
+          Search subject/body
+          <input type="text" id="search-input" placeholder="Type to search..." />
+        </label>
+        <button id="clear-filters-btn" type="button" class="secondary">
+          Clear filters
+        </button>
+      </section>
+
+      <section class="card legend-box">
+        <div class="legend-header">
+          <h2>Legend</h2>
+          <span class="legend-sub">Click to filter by sender (domain)</span>
+        </div>
+        <div id="legend-list" class="legend-list">
+          <!-- Filled by JS with senders + colors -->
+        </div>
+      </section>
+    </aside>
+
+    <!-- MIDDLE: email overview (paged, scrollable) -->
+    <section class="middle">
+      <section class="card list-header">
+        <div class="list-header-top">
+          <h2>Emails</h2>
+          <div class="page-controls">
+            <button id="prev-page-btn" type="button" class="secondary">&lt;</button>
+            <span id="page-info">Page 1 / 1</span>
+            <button id="next-page-btn" type="button" class="secondary">&gt;</button>
+          </div>
+        </div>
+        <div class="list-header-bottom">
+          <label>
+            Per page:
+            <select id="page-size-select">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card list-container">
+        <div id="email-list" class="email-list">
+          <!-- Email preview cards inserted by JS -->
+        </div>
+        <div id="list-empty" class="empty-state hidden">
+          No emails match the current filters.
+        </div>
+      </section>
+    </section>
+
+    <!-- RIGHT: full email detail -->
+    <section class="detail">
+      <section class="card detail-card">
+        <h2>Details</h2>
+        <div id="detail-placeholder">
+          <p class="placeholder-text">
+            Select an email from the middle column to see its full content here.
+          </p>
+        </div>
+        <div id="email-detail" class="email-detail hidden">
+          <div class="detail-header">
+            <span class="detail-badge" id="detail-color-badge"></span>
+            <div class="detail-meta">
+              <div id="detail-subject" class="detail-subject"></div>
+              <div id="detail-from" class="detail-line"></div>
+              <div id="detail-to" class="detail-line"></div>
+              <div id="detail-account" class="detail-line small"></div>
+              <div id="detail-datetime" class="detail-line small"></div>
+            </div>
+          </div>
+          <hr />
+          <pre id="detail-body" class="detail-body"></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer>
+    <p>Powered by FastAPI + email_management</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
