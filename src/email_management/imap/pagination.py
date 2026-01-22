@@ -1,0 +1,14 @@
+from dataclasses import dataclass
+from typing import List, Optional
+from email_management.types import EmailRef
+
+
+@dataclass
+class PagedSearchResult:
+    refs: List["EmailRef"]
+    next_before_uid: Optional[int] = None
+    prev_after_uid: Optional[int] = None
+    newest_uid: Optional[int] = None
+    oldest_uid: Optional[int] = None
+    total: Optional[int] = None
+    has_more: bool = False

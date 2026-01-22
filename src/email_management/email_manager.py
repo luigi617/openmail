@@ -13,7 +13,7 @@ from email_management.models import (UnsubscribeCandidate,
                                      UnsubscribeActionResult,
                                      Attachment)
 from email_management.subscription import SubscriptionService, SubscriptionDetector
-from email_management.imap import IMAPClient
+from email_management.imap import IMAPClient, PagedSearchResult
 from email_management.smtp import SMTPClient
 from email_management.types import EmailRef, SendResult
 from email_management.utils import (ensure_reply_subject,
@@ -492,9 +492,25 @@ class EmailManager:
         mailbox: str = "INBOX",
         n: int = 50,
         preview_bytes: int = 1024,
-    ) -> List[EmailOverview]:
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> tuple[PagedSearchResult, List[EmailOverview]]:
+        """
+        Fetch a page of EmailOverview objects with paging metadata.
+
+        - For the first (latest) page, call with refresh=True, before_uid=None.
+        - For next (older) pages, call with before_uid=prev_page.next_before_uid.
+        - For previous (newer) pages, call with after_uid=prev_page.prev_after_uid.
+        """
         q = self.imap_query(mailbox).limit(n)
-        return q.fetch_overview(preview_bytes=preview_bytes)
+        page, overviews = q.fetch_overview(
+            before_uid=before_uid,
+            after_uid=after_uid,
+            refresh=refresh,
+            preview_bytes=preview_bytes,
+        )
+        return page, overviews
     
     def fetch_latest(
         self,
@@ -503,11 +519,28 @@ class EmailManager:
         n: int = 50,
         unseen_only: bool = False,
         include_attachments: bool = False,
-    ) -> List[EmailMessage]:
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> tuple[PagedSearchResult, List[EmailMessage]]:
+        """
+        Fetch a page of latest messages plus paging metadata.
+
+        - For the first (latest) page, call with refresh=True, before_uid=None.
+        - For next (older) pages, call with before_uid=prev_page.next_before_uid.
+        - For previous (newer) pages, call with after_uid=prev_page.prev_after_uid.
+        """
         q = self.imap_query(mailbox).limit(n)
         if unseen_only:
             q.query.unseen()
-        return q.fetch(include_attachments=include_attachments)
+
+        page, messages = q.fetch(
+            before_uid=before_uid,
+            after_uid=after_uid,
+            refresh=refresh,
+            include_attachments=include_attachments,
+        )
+        return page, messages
 
     def fetch_thread(
         self,
@@ -528,7 +561,7 @@ class EmailManager:
             .limit(200)
         )
 
-        msgs = q.fetch(include_attachments=include_attachments)
+        _, msgs = q.fetch(include_attachments=include_attachments)
 
         # Ensure root is present exactly once
         mid = root.message_id
@@ -554,14 +587,30 @@ class EmailManager:
 
     def mark_all_seen(self, mailbox: str = "INBOX", *, chunk_size: int = 500) -> int:
         total = 0
+
+        # Build a reusable EasyIMAPQuery for UNSEEN messages in this mailbox
+        q = self.imap_query(mailbox).limit(chunk_size)
+        q.query.unseen()
+
+        before_uid: Optional[int] = None
+        refresh = True  # do a real SEARCH once to build the cache
+
         while True:
-            q = self.imap_query(mailbox).limit(chunk_size)
-            q.query.unseen()
-            refs = q.search()
+            page = q.search(before_uid=before_uid, refresh=refresh)
+            refresh = False  # all further pages come from cache
+
+            refs = page.refs
             if not refs:
                 break
+
             self.add_flags(refs, {SEEN})
             total += len(refs)
+
+            if not page.has_more or page.next_before_uid is None:
+                break
+
+            before_uid = page.next_before_uid
+
         return total
 
     def mark_unseen(self, refs: Sequence[EmailRef]) -> None:

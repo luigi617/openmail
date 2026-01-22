@@ -1,8 +1,7 @@
 from __future__ import annotations
 from typing import List, Optional, Sequence, TYPE_CHECKING
 from email_management.models import EmailMessage, EmailOverview
-from email_management.imap import IMAPQuery
-from email_management.types import EmailRef
+from email_management.imap import IMAPQuery, PagedSearchResult
 from email_management.utils import iso_days_ago
 
 if TYPE_CHECKING:
@@ -225,14 +224,52 @@ class EasyIMAPQuery:
         self._q.raw(*tokens)
         return self
 
-    def search(self) -> List[EmailRef]:
-        return self._m.imap.search(mailbox=self._mailbox, query=self._q, limit=self._limit)
+    def search(
+        self,
+        *,
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> PagedSearchResult:
+        return self._m.imap.search_page_cached(
+            mailbox=self._mailbox,
+            query=self._q,
+            page_size=self._limit,
+            before_uid=before_uid,
+            after_uid=after_uid,
+            refresh=refresh,
+        )
 
-    def fetch(self, *, include_attachments: bool = False) -> List[EmailMessage]:
-        refs = self.search()
-        return self._m.imap.fetch(refs, include_attachments=include_attachments)
-    
-    def fetch_overview(self, *, preview_bytes: int = 1024) -> List[EmailOverview]:
-        refs = self.search()
-        return self._m.imap.fetch_overview(refs, preview_bytes=preview_bytes)
+    def fetch(
+        self,
+        *,
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+        include_attachments: bool = False,
+    ) -> tuple[PagedSearchResult, List[EmailMessage]]:
+        """
+        Fetch a page of full EmailMessage objects plus its paging metadata.
+        """
+        page = self.search(before_uid=before_uid, after_uid=after_uid, refresh=refresh)
+        if not page.refs:
+            return page, []
+        messages = self._m.imap.fetch(page.refs, include_attachments=include_attachments)
+        return page, messages
 
+    def fetch_overview(
+        self,
+        *,
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+        preview_bytes: int = 1024,
+    ) -> tuple[PagedSearchResult, List[EmailOverview]]:
+        """
+        Fetch a page of EmailOverview objects plus its paging metadata.
+        """
+        page = self.search(before_uid=before_uid, after_uid=after_uid, refresh=refresh)
+        if not page.refs:
+            return page, []
+        overviews = self._m.imap.fetch_overview(page.refs, preview_bytes=preview_bytes)
+        return page, overviews

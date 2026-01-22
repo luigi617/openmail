@@ -17,6 +17,7 @@ from email_management.utils import parse_list_mailbox_name
 
 from email_management.imap.query import IMAPQuery
 from email_management.imap.parser import parse_rfc822, parse_overview
+from email_management.imap.pagination import PagedSearchResult
 
 UID_RE = re.compile(r"UID\s+(\d+)", re.IGNORECASE)
 INTERNALDATE_RE = re.compile(r'INTERNALDATE\s+"([^"]+)"', re.IGNORECASE)
@@ -31,6 +32,8 @@ class IMAPClient:
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
     _selected_mailbox: str | None = field(default=None, init=False, repr=False)
     _selected_readonly: bool | None = field(default=None, init=False, repr=False)
+
+    _search_cache: Dict[tuple[str, str], List[int]] = field(default_factory=dict, init=False, repr=False)
 
     max_retries: int = 1
     backoff_seconds: float = 0.0
@@ -147,20 +150,121 @@ class IMAPClient:
 
         raise IMAPError(f"IMAP connection repeatedly aborted: {last_exc}") from last_exc
 
-    def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List["EmailRef"]:
-        def _impl(conn: imaplib.IMAP4) -> List["EmailRef"]:
+    def refresh_search_cache(self, *, mailbox: str, query: IMAPQuery) -> List[int]:
+        """
+        Refresh the cached UID list for (mailbox, query).
+        """
+        criteria = query.build() or "ALL"
+        cache_key = (mailbox, criteria)
+
+        def _impl(conn: imaplib.IMAP4) -> List[int]:
             self._ensure_selected(conn, mailbox, readonly=True)
 
-            typ, data = conn.uid("SEARCH", None, query.build())
+            typ, data = conn.uid("SEARCH", None, criteria)
             if typ != "OK":
                 raise IMAPError(f"SEARCH failed: {data}")
 
-            uids = (data[0] or b"").split()
-            uids = list(reversed(uids))[:limit]
-            return [EmailRef(uid=int(x), mailbox=mailbox) for x in uids]
+            raw = data[0] or b""
+            # SEARCH returns ascending UIDs (oldest -> newest)
+            uids_bytes = raw.split()
+            uids = [int(x) for x in uids_bytes]
+
+            # Store in cache while holding the lock (run_with_conn already does)
+            self._search_cache[cache_key] = uids
+            return uids
 
         return self._run_with_conn(_impl)
+    
+    def search_page_cached(
+        self,
+        *,
+        mailbox: str,
+        query: IMAPQuery,
+        page_size: int = 50,
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> PagedSearchResult:
+        """
+        Cached, cursor-based paging over search results, newest-first.
+        """
 
+        if before_uid is not None and after_uid is not None:
+            raise ValueError("Cannot specify both before_uid and after_uid")
+    
+        criteria = query.build() or "ALL"
+        cache_key = (mailbox, criteria)
+
+        with self._lock:
+            uids = None if refresh else self._search_cache.get(cache_key)
+
+        if uids is None:
+            uids = self.refresh_search_cache(mailbox=mailbox, query=query)
+
+        if not uids:
+            return PagedSearchResult(refs=[], total=0, has_more=False)
+
+        uids_sorted = uids
+        if before_uid is not None:
+            filtered = [uid for uid in uids_sorted if uid < before_uid]
+            direction = "older"
+        elif after_uid is not None:
+            filtered = [uid for uid in uids_sorted if uid > after_uid]
+            direction = "newer"
+        else:
+            filtered = uids_sorted
+            direction = "initial"
+
+        if not filtered:
+            return PagedSearchResult(refs=[], total=len(uids), has_more=False)
+
+        filtered_rev = list(reversed(filtered))
+        page_uids = filtered_rev[:page_size]
+
+        if not page_uids:
+            return PagedSearchResult(refs=[], total=len(uids), has_more=False)
+
+        refs = [EmailRef(uid=uid, mailbox=mailbox) for uid in page_uids]
+
+        newest_uid = page_uids[0]
+        oldest_uid = page_uids[-1]
+
+        total_matches = len(uids)
+        total_in_range = len(filtered)
+
+        has_more = total_in_range > page_size
+        next_before_uid = oldest_uid if has_more else None
+
+        prev_after_uid: Optional[int] = None
+        if direction in ("older", "initial"):
+            if newest_uid < uids_sorted[-1]:
+                prev_after_uid = newest_uid
+
+        elif direction == "newer":
+            if newest_uid < uids_sorted[-1]:
+                prev_after_uid = newest_uid
+
+        return PagedSearchResult(
+            refs=refs,
+            next_before_uid=next_before_uid,
+            prev_after_uid=prev_after_uid,
+            newest_uid=newest_uid,
+            oldest_uid=oldest_uid,
+            total=total_matches,
+            has_more=has_more,
+        )
+
+    def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List["EmailRef"]:
+        page = self.search_page_cached(
+            mailbox=mailbox,
+            query=query,
+            page_size=limit,
+            before_uid=None,
+            after_uid=None,
+            refresh=True,  # force a fresh SEARCH, also populates cache
+        )
+        return page.refs
+    
     def fetch(self, refs: Sequence["EmailRef"], *, include_attachments: bool = False) -> List[EmailMessage]:
         if not refs:
             return []
