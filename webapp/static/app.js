@@ -785,11 +785,9 @@ function applyFiltersAndRender() {
     filtered = filtered.filter((e) => {
       const subject = (e.subject || "").toLowerCase();
       const snippet = (e.snippet || "").toLowerCase();
-      const bodyPreview = (e.preview || "").toLowerCase();
       return (
         subject.includes(state.searchText) ||
-        snippet.includes(state.searchText) ||
-        bodyPreview.includes(state.searchText)
+        snippet.includes(state.searchText)
       );
     });
   }
@@ -839,7 +837,6 @@ function renderListAndPagination() {
       "(unknown sender)";
     const dateStr = formatDate(email.date);
     const subj = email.subject || "(no subject)";
-    const snippet = email.preview || "";
 
     card.innerHTML = `
       <div class="email-color-strip" style="background: ${color};"></div>
@@ -849,7 +846,6 @@ function renderListAndPagination() {
           <div class="email-date">${escapeHtml(dateStr)}</div>
         </div>
         <div class="email-subject">${escapeHtml(subj)}</div>
-        <div class="email-snippet">${escapeHtml(snippet)}</div>
       </div>
     `;
 
@@ -873,6 +869,7 @@ function renderListAndPagination() {
   if (prevBtn) prevBtn.disabled = !state.prevCursor;
   if (nextBtn) nextBtn.disabled = !state.nextCursor;
 }
+
 
 /* ------------------ Detail rendering ------------------ */
 

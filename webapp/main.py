@@ -65,9 +65,29 @@ def get_email_overview(
         description="Optional list of account IDs. If omitted, all accounts are used.",
     ),
 ) -> dict:
+    """
+    Multi-account email overview with per-account pagination.
+
+    Cursor format (opaque to clients, but documented here):
+
+        {
+          "direction": "next" | "prev",
+          "mailbox": "<mailbox>",
+          "limit": <int>,
+          "accounts": {
+            "<account_id>": {
+              "next_before_uid": <int or null>,  # older-page anchor
+              "prev_after_uid": <int or null>,   # newer-page anchor
+            },
+            ...
+          }
+        }
+    """
+
     if limit < 1:
         raise HTTPException(status_code=400, detail="limit must be >= 1")
 
+    # ---------- Decode / init cursor state ----------
     if cursor:
         try:
             cursor_state = decode_cursor(cursor)
@@ -75,7 +95,7 @@ def get_email_overview(
             raise HTTPException(status_code=400, detail="Invalid cursor")
 
         try:
-            direction = cursor_state["direction"]
+            direction = cursor_state["direction"]  # "next" or "prev"
             mailbox = cursor_state["mailbox"]
             limit = cursor_state["limit"]
             account_state: Dict[str, Dict[str, Optional[int]]] = cursor_state["accounts"]
@@ -83,7 +103,6 @@ def get_email_overview(
             raise HTTPException(status_code=400, detail="Malformed cursor")
 
         account_ids = list(account_state.keys())
-
     else:
         direction = "next"
         if accounts is None:
@@ -91,14 +110,16 @@ def get_email_overview(
         else:
             account_ids = accounts
 
+        # Initial state: no anchors yet for any account.
         account_state = {
-            acc_id: {"before_uid": None, "after_uid": None}
+            acc_id: {"next_before_uid": None, "prev_after_uid": None}
             for acc_id in account_ids
         }
 
     if not account_ids:
         raise HTTPException(status_code=400, detail="No accounts specified or available")
 
+    # ---------- Resolve managers ----------
     managers: Dict[str, "EmailManager"] = {}
     for acc_id in account_ids:
         manager = ACCOUNTS.get(acc_id)
@@ -106,43 +127,44 @@ def get_email_overview(
             raise HTTPException(status_code=404, detail=f"Unknown account: {acc_id}")
         managers[acc_id] = manager
 
-
     combined_entries: List[Tuple[str, "EmailOverview"]] = []
     total_count = 0
 
     per_account_meta: Dict[str, "PagedSearchResult"] = {}
+    per_account_overviews: Dict[str, List["EmailOverview"]] = {}
 
     is_first_page = cursor is None
 
+    # ---------- Fetch page per account ----------
     for acc_id, manager in managers.items():
-        state = account_state.get(acc_id, {"before_uid": None, "after_uid": None})
-        before_uid: Optional[int]
-        after_uid: Optional[int]
+        state = account_state.get(acc_id, {"next_before_uid": None, "prev_after_uid": None})
+        next_before_uid = state.get("next_before_uid")
+        prev_after_uid = state.get("prev_after_uid")
 
         if direction == "next":
-            before_uid = state.get("before_uid")
+            before_uid = next_before_uid
             after_uid = None
         else:  # direction == "prev"
             before_uid = None
-            after_uid = state.get("after_uid")
+            after_uid = prev_after_uid
 
         page_meta, overview_list = manager.fetch_overview(
             mailbox=mailbox,
-            n=limit,
-            preview_bytes=1024,
+            n=limit,  # page_size per account
             before_uid=before_uid,
             after_uid=after_uid,
             refresh=is_first_page,
         )
 
         per_account_meta[acc_id] = page_meta
+        per_account_overviews[acc_id] = overview_list
         total_count += page_meta.total or len(overview_list)
 
         for ov in overview_list:
             combined_entries.append((acc_id, ov))
 
-
-
+    # ---------- Global merge & slice ----------
+    # Always present the page newest-first in the response.
     combined_entries.sort(
         key=lambda pair: pair[1].date or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
@@ -151,11 +173,12 @@ def get_email_overview(
     page_entries = combined_entries[:limit]
     result_count = len(page_entries)
 
+    # Track which overviews from each account are in THIS page
     contributed: Dict[str, List["EmailOverview"]] = {}
     for acc_id, ov in page_entries:
         contributed.setdefault(acc_id, []).append(ov)
 
-    # Build response payload
+    # ---------- Build response payload ----------
     data = []
     for acc_id, ov in page_entries:
         d = ov.to_dict()
@@ -163,88 +186,48 @@ def get_email_overview(
         # Put account on the ref object if it exists
         ref = d.get("ref")
         if isinstance(ref, dict):
-            # only set if not already present
             ref.setdefault("account", acc_id)
         else:
-            # fallback: put account at top level
             d.setdefault("account", acc_id)
 
         data.append(d)
 
-    next_state_accounts: Dict[str, Dict[str, Optional[int]]] = {}
-    prev_state_accounts: Dict[str, Dict[str, Optional[int]]] = {}
-
+    # ---------- Build per-account anchors for NEXT calls ----------
+    # For each account, we simply take its page_meta anchors:
+    #   - next_before_uid: cursor for going older (direction="next")
+    #   - prev_after_uid: cursor for going newer (direction="prev")
+    new_state_accounts: Dict[str, Dict[str, Optional[int]]] = {}
 
     for acc_id in account_ids:
-        state = account_state.get(acc_id, {"before_uid": None, "after_uid": None})
         page_meta = per_account_meta[acc_id]
-        seen_overviews = contributed.get(acc_id, [])
 
-        # Defaults: keep previous state unless we fully understand how to move it.
-        next_before_uid = state.get("before_uid")
-        prev_after_uid = state.get("after_uid")
-
-        if direction == "next":
-            # We’re moving older; for "next" cursors we care about before_uid
-            if seen_overviews:
-                # Oldest uid from this account that actually appeared in the page
-                oldest_uid_for_account = min(ov.ref.uid for ov in seen_overviews)
-                next_before_uid = oldest_uid_for_account
-            else:
-                # If this account produced no items in the global page:
-                # do not advance its cursor; keep its before_uid as-is to avoid skipping.
-                next_before_uid = state.get("before_uid")
-
-            # For moving newer (prev_cursor), use page_meta.prev_after_uid if present
-            if page_meta.prev_after_uid is not None:
-                prev_after_uid = page_meta.prev_after_uid
-
-        else:  # direction == "prev" (moving newer)
-            if seen_overviews:
-                # Newest uid from this account that appeared in the page
-                newest_uid_for_account = max(ov.ref.uid for ov in seen_overviews)
-                prev_after_uid = newest_uid_for_account
-            else:
-                prev_after_uid = state.get("after_uid")
-
-            # For moving older (next_cursor), use page_meta.next_before_uid if present
-            if page_meta.next_before_uid is not None and page_meta.has_more:
-                next_before_uid = page_meta.next_before_uid
-
-        next_state_accounts[acc_id] = {
-            "before_uid": next_before_uid,
-            "after_uid": state.get("after_uid"),  # unchanged for "next" direction
+        new_state_accounts[acc_id] = {
+            "next_before_uid": page_meta.next_before_uid,
+            "prev_after_uid": page_meta.prev_after_uid,
         }
-        prev_state_accounts[acc_id] = {
-            "before_uid": state.get("before_uid"),  # unchanged for "prev" direction
-            "after_uid": prev_after_uid,
-        }
-    
-    any_has_more_older = any(
-        meta.has_more for meta in per_account_meta.values()
-    )
-    any_has_more_newer = any(
-        meta.prev_after_uid is not None for meta in per_account_meta.values()
-    )
+
+    # Aggregate has_next / has_prev across accounts
+    any_has_next = any(meta.has_next for meta in per_account_meta.values())
+    any_has_prev = any(meta.has_prev for meta in per_account_meta.values())
 
     next_cursor = None
     prev_cursor = None
 
-    if result_count > 0 and any_has_more_older:
+    if result_count > 0 and any_has_next:
         next_cursor_state = {
             "direction": "next",
             "mailbox": mailbox,
             "limit": limit,
-            "accounts": next_state_accounts,
+            "accounts": new_state_accounts,
         }
         next_cursor = encode_cursor(next_cursor_state)
 
-    if result_count > 0 and any_has_more_newer:
+    if result_count > 0 and any_has_prev:
         prev_cursor_state = {
             "direction": "prev",
             "mailbox": mailbox,
             "limit": limit,
-            "accounts": prev_state_accounts,
+            "accounts": new_state_accounts,
         }
         prev_cursor = encode_cursor(prev_cursor_state)
 
@@ -257,6 +240,7 @@ def get_email_overview(
             "total_count": total_count,
         },
     }
+
 
 @app.get("/api/emails/mailbox")
 def get_email_mailbox() -> Dict[str, List[str]]:

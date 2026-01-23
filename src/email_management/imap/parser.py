@@ -174,7 +174,6 @@ def parse_overview(
         ref: EmailRef,
         flags: set,
         header_bytes: bytes | bytearray,
-        preview_bytes_val: bytes,
         *,
         internaldate_raw: Optional[str] = None,
     ) -> EmailMessage:
@@ -203,28 +202,6 @@ def parse_overview(
                 headers[k] = _decode(str(v))
 
         date = best_effort_date(date_header_raw, internaldate_raw)
-        
-        preview_text = ""
-        if preview_bytes_val:
-            if msg_headers is not None:
-                try:
-                    combined_raw = bytes(header_bytes) + b"\r\n" + preview_bytes_val
-                    msg_preview = BytesParser(policy=default_policy).parsebytes(combined_raw)
-                    text_preview, html_preview, _ = _extract_parts(msg_preview)
-
-                    if text_preview:
-                        preview_text = text_preview
-                    elif html_preview:
-                        preview_text = html_preview
-                    else:
-                        preview_text = _decode_body_chunk(preview_bytes_val, msg_headers)
-                except Exception:
-                    try:
-                        preview_text = _decode_body_chunk(preview_bytes_val, msg_headers)
-                    except Exception:
-                        preview_text = preview_bytes_val.decode("utf-8", errors="replace")
-            else:
-                preview_text = preview_bytes_val.decode("utf-8", errors="replace")
 
         subject_final = subject or ""
         from_final = from_addr or EmailAddress(email="", name=None)
@@ -236,7 +213,6 @@ def parse_overview(
                 to=to_addrs,
                 flags=flags,
                 date=date,
-                preview=preview_text,
                 headers=headers,
             )
                 

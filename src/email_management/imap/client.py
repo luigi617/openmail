@@ -3,6 +3,7 @@ import imaplib
 import time
 import re
 import threading
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Set, Dict
 from email.message import EmailMessage as PyEmailMessage
@@ -229,12 +230,12 @@ class IMAPClient:
         refresh: bool = False,
     ) -> PagedSearchResult:
         """
-        Cached, cursor-based paging over search results, newest-first.
+        Cached, page-based paging over search results, newest-first.
         """
 
         if before_uid is not None and after_uid is not None:
             raise ValueError("Cannot specify both before_uid and after_uid")
-    
+
         criteria = query.build() or "ALL"
         cache_key = (mailbox, criteria)
 
@@ -245,47 +246,54 @@ class IMAPClient:
             uids = self.refresh_search_cache(mailbox=mailbox, query=query)
 
         if not uids:
-            return PagedSearchResult(refs=[], total=0, has_more=False)
+            return PagedSearchResult(refs=[], total=0, has_next=False, has_prev=False)
 
-        uids_sorted = uids
+        uids_sorted = uids  # ascending, older -> newer
+        total_matches = len(uids_sorted)
+
+        # ---- Compute page slice [start:end) in ascending order ----
         if before_uid is not None:
-            filtered = [uid for uid in uids_sorted if uid < before_uid]
-            direction = "older"
+            idx = bisect_left(uids_sorted, before_uid)
+            end = idx
+            start = max(0, end - page_size)
         elif after_uid is not None:
-            filtered = [uid for uid in uids_sorted if uid > after_uid]
-            direction = "newer"
+            idx = bisect_right(uids_sorted, after_uid)
+            start = idx
+            end = min(len(uids_sorted), start + page_size)
         else:
-            filtered = uids_sorted
-            direction = "initial"
+            # No anchors: newest page (last page_size items).
+            end = len(uids_sorted)
+            start = max(0, end - page_size)
 
-        if not filtered:
-            return PagedSearchResult(refs=[], total=len(uids), has_more=False)
+        if start >= end:
+            # Nothing in range; we still know total, but no next/prev.
+            return PagedSearchResult(
+                refs=[],
+                total=total_matches,
+                has_next=False,
+                has_prev=False,
+            )
 
-        filtered_rev = list(reversed(filtered))
-        page_uids = filtered_rev[:page_size]
+        # Contiguous slice in ascending order
+        page_uids_asc = uids_sorted[start:end]
 
-        if not page_uids:
-            return PagedSearchResult(refs=[], total=len(uids), has_more=False)
+        # For display, return newest-first
+        page_uids = list(reversed(page_uids_asc))
 
         refs = [EmailRef(uid=uid, mailbox=mailbox) for uid in page_uids]
 
-        newest_uid = page_uids[0]
-        oldest_uid = page_uids[-1]
+        # Oldest/newest refer to UID age (ascending list)
+        oldest_uid = page_uids_asc[0]
+        newest_uid = page_uids_asc[-1]
 
-        total_matches = len(uids)
-        total_in_range = len(filtered)
+        has_older = (start > 0)
+        has_newer = (end < len(uids_sorted))
 
-        has_more = total_in_range > page_size
-        next_before_uid = oldest_uid if has_more else None
+        has_next = has_older
+        has_prev = has_newer
 
-        prev_after_uid: Optional[int] = None
-        if direction in ("older", "initial"):
-            if newest_uid < uids_sorted[-1]:
-                prev_after_uid = newest_uid
-
-        elif direction == "newer":
-            if newest_uid < uids_sorted[-1]:
-                prev_after_uid = newest_uid
+        next_before_uid: Optional[int] = oldest_uid if has_older else None
+        prev_after_uid: Optional[int] = newest_uid if has_newer else None
 
         return PagedSearchResult(
             refs=refs,
@@ -294,7 +302,8 @@ class IMAPClient:
             newest_uid=newest_uid,
             oldest_uid=oldest_uid,
             total=total_matches,
-            has_more=has_more,
+            has_next=has_next,
+            has_prev=has_prev,
         )
 
     def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List["EmailRef"]:
@@ -413,8 +422,6 @@ class IMAPClient:
     def fetch_overview(
         self,
         refs: Sequence["EmailRef"],
-        *,
-        preview_bytes: int = 1024,
     ) -> List[EmailOverview]:
         """
         Lightweight fetch: only FLAGS, selected headers (From, To, Subject, Date, Message-ID),
@@ -431,8 +438,7 @@ class IMAPClient:
             # FLAGS + headers + partial text body
             attrs = (
                 f"(UID FLAGS INTERNALDATE "
-                "BODY.PEEK[HEADER.FIELDS (From To Subject Date Message-ID Content-Type Content-Transfer-Encoding)] "
-                f"BODY.PEEK[TEXT]<0.{preview_bytes}>)"
+                "BODY.PEEK[HEADER.FIELDS (From To Subject Date Message-ID Content-Type Content-Transfer-Encoding)])"
             )
             typ, data = conn.uid("FETCH", uid_str, attrs)
             if typ != "OK":
@@ -465,8 +471,7 @@ class IMAPClient:
                     continue
 
                 meta = meta_raw.decode(errors="ignore")
-
-                payload = item[1] if len(item) > 1 and isinstance(item[1], (bytes, bytearray)) else None
+                payload = item[1] if len(item) > 1 else None
 
                 m_uid = UID_RE.search(meta)
                 if m_uid:
@@ -481,7 +486,6 @@ class IMAPClient:
                     {
                         "flags": set(),
                         "headers": None,
-                        "preview": b"",
                         "internaldate": None,
                     },
                 )
@@ -502,10 +506,6 @@ class IMAPClient:
                 if HEADER_TOKEN_RE.search(meta) and isinstance(payload, (bytes, bytearray)):
                     bucket["headers"] = payload
 
-                # Preview (BODY[TEXT] or BODY.PEEK[TEXT] etc.)
-                if TEXT_TOKEN_RE.search(meta) and isinstance(payload, (bytes, bytearray)):
-                    prev = bucket.get("preview") or b""
-                    bucket["preview"] = prev + payload
 
                 i += 1
 
@@ -518,7 +518,6 @@ class IMAPClient:
 
                 flags = set(info["flags"]) if isinstance(info["flags"], set) else set()
                 header_bytes = info["headers"]
-                preview_bytes_val = info["preview"] or b""
                 internaldate_raw = info.get("internaldate")
 
                 overviews.append(
@@ -526,7 +525,6 @@ class IMAPClient:
                         r,
                         flags,
                         header_bytes,
-                        preview_bytes_val,
                         internaldate_raw=internaldate_raw,
                     )
                 )

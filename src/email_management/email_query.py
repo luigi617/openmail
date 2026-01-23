@@ -263,7 +263,6 @@ class EasyIMAPQuery:
         before_uid: Optional[int] = None,
         after_uid: Optional[int] = None,
         refresh: bool = False,
-        preview_bytes: int = 1024,
     ) -> tuple[PagedSearchResult, List[EmailOverview]]:
         """
         Fetch a page of EmailOverview objects plus its paging metadata.
@@ -271,5 +270,5 @@ class EasyIMAPQuery:
         page = self.search(before_uid=before_uid, after_uid=after_uid, refresh=refresh)
         if not page.refs:
             return page, []
-        overviews = self._m.imap.fetch_overview(page.refs, preview_bytes=preview_bytes)
+        overviews = self._m.imap.fetch_overview(page.refs)
         return page, overviews

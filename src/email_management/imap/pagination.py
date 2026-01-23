@@ -11,4 +11,5 @@ class PagedSearchResult:
     newest_uid: Optional[int] = None
     oldest_uid: Optional[int] = None
     total: Optional[int] = None
-    has_more: bool = False
+    has_next: bool = False
+    has_prev: bool = False

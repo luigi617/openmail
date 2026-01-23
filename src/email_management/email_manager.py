@@ -491,7 +491,6 @@ class EmailManager:
         *,
         mailbox: str = "INBOX",
         n: int = 50,
-        preview_bytes: int = 1024,
         before_uid: Optional[int] = None,
         after_uid: Optional[int] = None,
         refresh: bool = False,
@@ -508,7 +507,6 @@ class EmailManager:
             before_uid=before_uid,
             after_uid=after_uid,
             refresh=refresh,
-            preview_bytes=preview_bytes,
         )
         return page, overviews
     

@@ -81,7 +81,6 @@ class EmailOverview:
     from_email: EmailAddress
     to: Sequence[EmailAddress]
     flags: Set[str]
-    preview: str
     headers: Dict[str, str]
     date: Optional[datetime] = None
 
@@ -100,7 +99,6 @@ class EmailOverview:
             "from_email": self.from_email.to_dict(),
             "to": [addr.to_dict() for addr in self.to],
             "flags": list(self.flags),
-            "preview": self.preview,
             "headers": self.headers,
             "date": self.date.isoformat() if self.date else None,
         }
