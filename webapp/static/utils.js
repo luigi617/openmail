@@ -133,6 +133,78 @@
     return (colorMap && colorMap[key]) || "#9ca3af";
   }
 
+  function getMailboxDisplayName(raw) {
+    if (!raw) return "";
+
+    let name = String(raw).trim();
+
+    // 1) Strip provider / namespace prefixes
+
+    // Gmail: [Gmail]/All Mail
+    const gmailPrefix = "[Gmail]/";
+    if (name.startsWith(gmailPrefix)) {
+      name = name.slice(gmailPrefix.length).trim();
+    }
+
+    // Common IMAP namespace: INBOX.Something or INBOX/Something
+    name = name.replace(/^INBOX[/.]/i, "").trim();
+
+    // If still looks like a tree (e.g. "Folder/Subfolder" or "Folder.Subfolder"),
+    // use just the last segment.
+    const slashIdx = name.lastIndexOf("/");
+    const dotIdx = name.lastIndexOf(".");
+    const sepIdx = Math.max(slashIdx, dotIdx);
+    if (sepIdx !== -1) {
+      name = name.slice(sepIdx + 1).trim();
+    }
+
+    // 2) Normalize well-known mailboxes for Gmail / Outlook / Yahoo / iCloud, etc.
+
+    const lower = name.toLowerCase();
+
+    const specialMap = {
+      // Inbox
+      "inbox": "Inbox",
+
+      // Sent
+      "sent": "Sent",
+      "sent mail": "Sent",
+      "sent items": "Sent",
+      "sent messages": "Sent",
+
+      // Drafts
+      "draft": "Drafts",
+      "drafts": "Drafts",
+
+      // Trash / Deleted
+      "trash": "Trash",
+      "bin": "Trash",
+      "deleted items": "Trash",
+      "deleted messages": "Trash",
+
+      // Spam / Junk
+      "spam": "Spam",
+      "junk": "Spam",
+      "junk e-mail": "Spam",
+      "bulk mail": "Spam",
+
+      // Archive / All Mail
+      "archive": "Archive",
+      "all mail": "All mail",
+
+      // Other Gmail system labels
+      "important": "Important",
+      "starred": "Starred"
+    };
+
+    if (specialMap[lower]) {
+      return specialMap[lower];
+    }
+
+    // 3) Fallback: simple Title Case of whatever is left
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
   global.Utils = {
     COLOR_PALETTE,
     formatDate,
@@ -144,5 +216,6 @@
     findAccountForEmail,
     buildColorMap,
     getColorForEmail,
+    getMailboxDisplayName,
   };
 })(window);

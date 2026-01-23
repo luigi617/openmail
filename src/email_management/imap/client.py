@@ -87,6 +87,21 @@ class IMAPClient:
         self._selected_mailbox = None
         self._selected_readonly = None
 
+    def _format_mailbox_arg(self, mailbox: str) -> str:
+        """
+        Format a mailbox name for IMAP commands.
+
+        - Leaves INBOX as-is (special name).
+        - If already quoted, return as-is.
+        - Otherwise, wrap in double quotes so names with spaces or
+          special characters (e.g. "[Gmail]/All Mail") parse correctly.
+        """
+        if mailbox.upper() == "INBOX":
+            return "INBOX"
+        if mailbox.startswith('"') and mailbox.endswith('"'):
+            return mailbox
+        return f'"{mailbox}"'
+
     def _ensure_selected(self, conn: imaplib.IMAP4, mailbox: str, readonly: bool) -> None:
         """
         Cache the selected mailbox to avoid repeated SELECT/EXAMINE.
@@ -98,8 +113,9 @@ class IMAPClient:
         if self._selected_mailbox == mailbox:
             if readonly or self._selected_readonly is False:
                 return
+        imap_mailbox = self._format_mailbox_arg(mailbox)
 
-        typ, _ = conn.select(mailbox, readonly=readonly)
+        typ, _ = conn.select(imap_mailbox, readonly=readonly)
         if typ != "OK":
             raise IMAPError(f"select({mailbox!r}, readonly={readonly}) failed")
         self._selected_mailbox = mailbox
@@ -121,6 +137,33 @@ class IMAPClient:
                     f"(got {refs[0].mailbox!r} and {r.mailbox!r})"
                 )
         return mailbox
+    
+    def _parse_list_flags(self, raw: bytes) -> Set[str]:
+        """
+        Parse the flags portion of an IMAP LIST response line.
+
+        Example raw:
+            b'(\\HasChildren \\Noselect) "/" "[Gmail]"'
+
+        Returns a set of upper-cased flag tokens, e.g.:
+            {"\\HASCHILDREN", "\\NOSELECT"}
+        """
+        try:
+            s = raw.decode(errors="ignore")
+        except Exception:
+            return set()
+
+        start = s.find("(")
+        end = s.find(")", start + 1)
+        if start == -1 or end == -1 or end <= start + 1:
+            return set()
+
+        flags_str = s[start + 1 : end].strip()
+        if not flags_str:
+            return set()
+
+        # Split on whitespace; normalize to upper-case
+        return {f.upper() for f in flags_str.split() if f.strip()}
     
     def _run_with_conn(self, op):
         """
@@ -511,8 +554,8 @@ class IMAPClient:
 
             date_time = imaplib.Time2Internaldate(time.time())
             raw_bytes = msg.as_bytes()
-
-            typ, data = conn.append(mailbox, flags_arg, date_time, raw_bytes)
+            imap_mailbox = self._format_mailbox_arg(mailbox)
+            typ, data = conn.append(imap_mailbox, flags_arg, date_time, raw_bytes)
             if typ != "OK":
                 raise IMAPError(f"APPEND to {mailbox!r} failed: {data}")
 
@@ -580,7 +623,7 @@ class IMAPClient:
 
     def list_mailboxes(self) -> List[str]:
         """
-        Return a list of mailbox names.
+        Return a list of *selectable* mailbox names (skip \\Noselect).
         """
         def _impl(conn: imaplib.IMAP4) -> List[str]:
             typ, data = conn.list()
@@ -594,6 +637,12 @@ class IMAPClient:
             for raw in data:
                 if not raw:
                     continue
+
+                # Skip non-selectable mailboxes advertised with \Noselect
+                flags = self._parse_list_flags(raw)
+                if r"\NOSELECT" in flags:
+                    continue
+
                 name = parse_list_mailbox_name(raw)
                 if name is not None:
                     mailboxes.append(name)
@@ -608,7 +657,8 @@ class IMAPClient:
             {"messages": 1234, "unseen": 12}
         """
         def _impl(conn: imaplib.IMAP4) -> Dict[str, int]:
-            typ, data = conn.status(mailbox, "(MESSAGES UNSEEN)")
+            imap_mailbox = self._format_mailbox_arg(mailbox)
+            typ, data = conn.status(imap_mailbox, "(MESSAGES UNSEEN)")
             if typ != "OK":
                 raise IMAPError(f"STATUS {mailbox!r} failed: {data}")
 
@@ -669,12 +719,13 @@ class IMAPClient:
             self._ensure_selected(conn, src_mailbox, readonly=False)
 
             uids = ",".join(str(r.uid) for r in refs)
+            dst_arg = self._format_mailbox_arg(dst_mailbox)
 
-            typ, data = conn.uid("MOVE", uids, dst_mailbox)
+            typ, data = conn.uid("MOVE", uids, dst_arg)
             if typ == "OK":
                 return
 
-            typ_copy, data_copy = conn.uid("COPY", uids, dst_mailbox)
+            typ_copy, data_copy = conn.uid("COPY", uids, dst_arg)
             if typ_copy != "OK":
                 raise IMAPError(f"COPY (for MOVE fallback) failed: {data_copy}")
 
@@ -706,7 +757,8 @@ class IMAPClient:
             self._ensure_selected(conn, src_mailbox, readonly=False)
 
             uids = ",".join(str(r.uid) for r in refs)
-            typ, data = conn.uid("COPY", uids, dst_mailbox)
+            dst_arg = self._format_mailbox_arg(dst_mailbox)
+            typ, data = conn.uid("COPY", uids, dst_arg)
             if typ != "OK":
                 raise IMAPError(f"COPY failed: {data}")
 
@@ -714,7 +766,8 @@ class IMAPClient:
 
     def create_mailbox(self, name: str) -> None:
         def _impl(conn: imaplib.IMAP4) -> None:
-            typ, data = conn.create(name)
+            imap_name = self._format_mailbox_arg(name)
+            typ, data = conn.create(imap_name)
             if typ != "OK":
                 raise IMAPError(f"CREATE {name!r} failed: {data}")
 
@@ -722,7 +775,8 @@ class IMAPClient:
 
     def delete_mailbox(self, name: str) -> None:
         def _impl(conn: imaplib.IMAP4) -> None:
-            typ, data = conn.delete(name)
+            imap_name = self._format_mailbox_arg(name)
+            typ, data = conn.delete(imap_name)
             if typ != "OK":
                 raise IMAPError(f"DELETE {name!r} failed: {data}")
 

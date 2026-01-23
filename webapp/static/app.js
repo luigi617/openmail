@@ -83,6 +83,10 @@ function getEmailId(email) {
   return Utils.getEmailId(email);
 }
 
+function getMailboxDisplayName(email) {
+  return Utils.getMailboxDisplayName(email);
+}
+
 /* ------------------ Detail toolbar / move panel ------------------ */
 
 function initDetailActions() {
@@ -171,7 +175,7 @@ function populateMoveMailboxSelect() {
   for (const mb of mailboxes) {
     const opt = document.createElement("option");
     opt.value = mb;
-    opt.textContent = mb;
+    opt.textContent = getMailboxDisplayName(mb);
     if (mb === state.currentMailbox) {
       opt.selected = true;
     }
@@ -197,6 +201,12 @@ function initComposer() {
 
   const resizeZone = document.getElementById("composer-resize-zone");
   const composerEl = document.getElementById("composer");
+
+  const composerMain = document.querySelector("#composer .composer-main");
+  const attachmentsBar = document.getElementById("composer-attachments");
+  if (composerMain && attachmentsBar && attachmentsBar.parentElement !== composerMain) {
+    composerMain.appendChild(attachmentsBar);
+  }
 
   if (composeBtn) {
     composeBtn.addEventListener("click", () => openComposer("compose"));
@@ -450,6 +460,7 @@ function renderComposerAttachments() {
     const pill = document.createElement("div");
     pill.className = "attachment-pill";
 
+    // filename
     const nameSpan = document.createElement("span");
     nameSpan.className = "attachment-pill-name";
     nameSpan.textContent = file.name;
@@ -457,20 +468,22 @@ function renderComposerAttachments() {
     const actions = document.createElement("div");
     actions.className = "attachment-pill-actions";
 
-    const previewBtn = document.createElement("button");
-    previewBtn.type = "button";
-    previewBtn.textContent = "Preview";
-    previewBtn.className = "attachment-pill-btn";
-    previewBtn.addEventListener("click", () => {
-      const url = URL.createObjectURL(file);
-      window.open(url, "_blank");
-    });
-
+    // 🔽 Download button with SVG icon
     const downloadBtn = document.createElement("button");
     downloadBtn.type = "button";
-    downloadBtn.textContent = "Download";
-    downloadBtn.className = "attachment-pill-btn";
-    downloadBtn.addEventListener("click", () => {
+    downloadBtn.className = "attachment-pill-btn attachment-pill-icon";
+    downloadBtn.title = "Download";
+
+    const downloadIcon = document.createElement("img");
+    downloadIcon.src = "/static/svg/download.svg"; // same dir as other svgs
+    downloadIcon.alt = "";
+    downloadIcon.className = "icon-img";
+
+    downloadBtn.appendChild(downloadIcon);
+
+    downloadBtn.addEventListener("click", (e) => {
+      // don't trigger card preview
+      e.stopPropagation();
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
@@ -480,29 +493,38 @@ function renderComposerAttachments() {
       document.body.removeChild(a);
     });
 
+    // remove (X)
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.textContent = "×";
     removeBtn.className =
       "attachment-pill-btn attachment-pill-remove";
-    removeBtn.addEventListener("click", () => {
+    removeBtn.title = "Remove attachment";
+
+    removeBtn.addEventListener("click", (e) => {
+      // don't trigger card preview
+      e.stopPropagation();
       const current = state.composerAttachmentsFiles || [];
       current.splice(index, 1);
       state.composerAttachmentsFiles = current;
       renderComposerAttachments();
     });
 
-    actions.appendChild(previewBtn);
     actions.appendChild(downloadBtn);
     actions.appendChild(removeBtn);
 
     pill.appendChild(nameSpan);
     pill.appendChild(actions);
 
+    // 🔽 Click the card itself to preview in a new tab
+    pill.addEventListener("click", () => {
+      const url = URL.createObjectURL(file);
+      window.open(url, "_blank");
+    });
+
     container.appendChild(pill);
   });
 }
-
 
 function closeComposer() {
   const composer = document.getElementById("composer");
@@ -904,7 +926,7 @@ function renderDetailFromOverviewOnly(overview) {
   if (accountEl) {
     const account = ref.account || overview.account || "all";
     const mailbox = ref.mailbox || overview.mailbox || state.currentMailbox;
-    accountEl.textContent = `Account: ${account} • Mailbox: ${mailbox}`;
+    accountEl.textContent = `Account: ${account} • Mailbox: ${getMailboxDisplayName(mailbox)}`;
   }
 
   if (badgeEl) badgeEl.style.background = color;
@@ -963,7 +985,7 @@ function renderDetailFromMessage(overview, msg) {
   if (accountEl) {
     const account = ref.account || (overview && overview.account) || "unknown";
     const mailbox = ref.mailbox || (overview && overview.mailbox) || state.currentMailbox;
-    accountEl.textContent = `Account: ${account} • Mailbox: ${mailbox}`;
+    accountEl.textContent = `Account: ${account} • Mailbox: ${getMailboxDisplayName(mailbox)}`;
   }
 
   if (badgeEl) badgeEl.style.background = color;
@@ -1047,7 +1069,7 @@ function renderMailboxList(mailboxData) {
       dot.className = "mailbox-dot";
 
       const label = document.createElement("span");
-      label.textContent = m;
+      label.textContent = getMailboxDisplayName(m);
 
       item.appendChild(dot);
       item.appendChild(label);

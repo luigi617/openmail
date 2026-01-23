@@ -696,6 +696,7 @@ button.secondary.small {
   min-width: 420px;
   min-height: 260px;
   max-height: calc(100vh - 3rem);
+  height: 420px;
   background: #ffffff;
   border-radius: 12px;
   box-shadow: var(--shadow-soft);
@@ -707,6 +708,22 @@ button.secondary.small {
   /* window is resized via the (invisible) top-left corner */
   resize: none;
   overflow: hidden;
+}
+
+.composer input,
+.composer textarea {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.composer input:hover,
+.composer textarea:hover,
+.composer input:focus,
+.composer textarea:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* hotspot for resizing (no visible button) */
@@ -810,12 +827,12 @@ button.secondary.small {
 /* attachments bar (now between body and footer) */
 
 .composer-attachments {
-  padding: 0.25rem 0.75rem;
+  padding: 0.4rem 0.75rem; /* a bit more padding */
   border-top: 1px solid #e5e5ea;
   border-bottom: 1px solid #e5e5ea;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.35rem; /* slightly bigger gap between pills */
   font-size: 0.78rem;
   background: #ffffff;
 }
@@ -823,10 +840,15 @@ button.secondary.small {
 .attachment-pill {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   border-radius: 999px;
-  padding: 0.15rem 0.55rem;
+  padding: 0.25rem 0.7rem; /* a bit more padding */
   background: #f3f4f6;
+  cursor: pointer;          /* card is clickable (preview) */
+}
+
+.attachment-pill:hover {
+  background: #e5e7eb;
 }
 
 .attachment-pill-name {
@@ -842,15 +864,26 @@ button.secondary.small {
   gap: 0.25rem;
 }
 
+/* generic pill buttons (icon + X) */
 .attachment-pill-btn {
   border: none;
   background: transparent;
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
-  text-decoration: underline;
+  text-decoration: none; /* no text underline for icon */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+.attachment-pill-icon .icon-img {
+  width: 14px;
+  height: 14px;
+  margin: 0 0.25rem;
+}
+
+/* remove button stays small text */
 .attachment-pill-remove {
   font-size: 0.8rem;
 }
@@ -867,6 +900,8 @@ button.secondary.small {
   flex-direction: column;
   flex: 1;
   background: #ffffff;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .composer-meta {
@@ -906,16 +941,22 @@ button.secondary.small {
 
 .composer-editor {
   flex: 1;
-  padding: 0.5rem 0.75rem;
+  min-height: 0; /* allow editor to shrink */
+  padding: 8px 10px; /* light padding */
+  display: flex; /* ensure textarea fills */
+  background: transparent;
 }
 
 #composer-body {
+  flex: 1;
   width: 100%;
   height: 100%;
   border: none;
-  padding: 0.4rem 0;
+  outline: none;
+  resize: none;
   font: inherit;
-  resize: none; /* we resize the whole box instead */
+  padding: 4px 0; /* slight internal padding so cursor isn’t touching edges */
+  box-sizing: border-box;
 }
 
 #composer-body:focus {
