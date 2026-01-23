@@ -932,12 +932,6 @@ function renderDetailFromOverviewOnly(overview) {
     bodyHtmlEl.classList.add("hidden");
     bodyHtmlEl.innerHTML = "";
   }
-  if (bodyTextEl) {
-    bodyTextEl.classList.remove("hidden");
-    bodyTextEl.textContent =
-      overview.preview ||
-      "(no body preview)";
-  }
 }
 
 /**
@@ -992,19 +986,42 @@ function renderDetailFromMessage(overview, msg) {
     textBody = msg.html.replace(/<[^>]+>/g, "");
   }
   if (!textBody && overview) {
-    textBody = overview.preview || "";
+    textBody = "";
   }
 
   const htmlBody = msg.html || "";
 
   if (htmlBody && bodyHtmlEl) {
-    // Show HTML, hide text
+    // Show HTML body, hide plain text
     bodyHtmlEl.classList.remove("hidden");
-    bodyHtmlEl.innerHTML = htmlBody;
-
     if (bodyTextEl) {
       bodyTextEl.classList.add("hidden");
       bodyTextEl.textContent = "";
+    }
+
+    // Create a shadow root once and reuse it
+    if (!bodyHtmlEl._shadowRoot && bodyHtmlEl.attachShadow) {
+      bodyHtmlEl._shadowRoot = bodyHtmlEl.attachShadow({ mode: "open" });
+    }
+
+    if (bodyHtmlEl._shadowRoot) {
+      // Optional: add a minimal baseline style for readability inside the email
+      bodyHtmlEl._shadowRoot.innerHTML = `
+        <style>
+          /* Baseline inside the email bubble only */
+          :host {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.88rem;
+          }
+          body {
+            margin: 0;
+          }
+        </style>
+        ${htmlBody}
+      `;
+    } else {
+      // Fallback for very old browsers – behaves like before
+      bodyHtmlEl.innerHTML = htmlBody;
     }
   } else if (textBody && bodyTextEl) {
     // No HTML: show text, hide HTML
