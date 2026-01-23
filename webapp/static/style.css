@@ -129,6 +129,67 @@ main.layout {
   margin-bottom: 0.35rem;
 }
 
+/* Search bar row: input + button on one line, pill-style */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.25rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+}
+
+/* Search input inside the pill */
+.search-input {
+  flex: 1;
+  border: none!important;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+/* Remove global input focus look for this specific input */
+.search-input:focus {
+  border: none !important;
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Modern circular search button coherent with primary/secondary buttons */
+.search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid #d2d5de;        /* same border */
+  background: rgba(255, 255, 255, 0.8); /* same background */
+  color: #111827;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.search-btn:hover {
+  background: #e5e5ea;              /* same hover gray */
+}
+
+.search-btn:active {
+  transform: translateY(0.5px);
+}
+
+.search-btn .icon-img {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;                     /* match subtle icon look */
+}
+
+
 /* Search input */
 .block-label {
   display: block;

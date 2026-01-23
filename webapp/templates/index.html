@@ -14,17 +14,29 @@
       <!-- 1) Filters -->
       <section class="card">
         <h2>Search</h2>
-        <label class="block-label">
-          <input type="text" id="search-input" placeholder="Search" />
-        </label>
-        <img
-          src="/static/svg/search.svg"
-          alt=""
-          aria-hidden="true"
-          class="icon-img"
-        />
-        <span>Search</span>
+        <div class="search-row">
+          <input
+            type="text"
+            id="search-input"
+            class="search-input"
+            placeholder="Search mail"
+          />
+          <button
+            type="button"
+            id="search-btn"
+            class="search-btn"
+            aria-label="Search"
+          >
+            <img
+              src="/static/svg/search.svg"
+              alt=""
+              aria-hidden="true"
+              class="icon-img"
+            />
+          </button>
+        </div>
       </section>
+
 
       <!-- 2) Mailboxes (info + list) -->
       <section class="card">
@@ -38,7 +50,6 @@
       <section class="card legend-box">
         <div class="legend-header">
           <h2>Legend</h2>
-          <span class="legend-sub">Click to filter by sender (account)</span>
         </div>
         <div id="legend-list" class="legend-list">
           <!-- Filled by JS with accounts + colors -->
@@ -229,7 +240,12 @@
           class="composer-icon-btn"
           title="Add attachment"
         >
-          📎
+          <img
+              src="/static/svg/attachment.svg"
+              alt=""
+              aria-hidden="true"
+              class="icon-img"
+            />
         </button>
         <input
           type="file"
@@ -244,7 +260,12 @@
           class="composer-icon-btn"
           title="Add emoji"
         >
-          😊
+          <img
+              src="/static/svg/emoji.svg"
+              alt=""
+              aria-hidden="true"
+              class="icon-img"
+            />
         </button>
 
         <button
@@ -268,7 +289,12 @@
           class="composer-icon-btn composer-icon-btn--secondary"
           title="Show fields"
         >
-          🙂
+          <img
+              src="/static/svg/list.svg"
+              alt=""
+              aria-hidden="true"
+              class="icon-img"
+            />
         </button>
 
         <div id="composer-extra-menu" class="composer-extra-menu hidden">
