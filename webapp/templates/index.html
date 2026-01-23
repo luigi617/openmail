@@ -17,9 +17,13 @@
         <label class="block-label">
           <input type="text" id="search-input" placeholder="Search" />
         </label>
-        <button id="search-btn" type="button" class="secondary">
-          Search
-        </button>
+        <img
+          src="/static/svg/search.svg"
+          alt=""
+          aria-hidden="true"
+          class="icon-img"
+        />
+        <span>Search</span>
       </section>
 
       <!-- 2) Mailboxes (info + list) -->
@@ -82,15 +86,101 @@
         <div id="email-detail" class="email-detail hidden">
           <!-- Action toolbar -->
           <div class="detail-toolbar">
-            <button type="button" class="icon-btn" id="btn-archive" title="Archive">📥</button>
-            <button type="button" class="icon-btn" id="btn-delete" title="Delete">🗑️</button>
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-archive"
+              title="Archive"
+              aria-label="Archive"
+            >
+              <img
+                src="/static/svg/box-archive.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-delete"
+              title="Delete"
+              aria-label="Delete"
+            >
+              <img
+                src="/static/svg/delete.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
+
             <span class="toolbar-separator"></span>
-            <button type="button" class="icon-btn" id="btn-reply" title="Reply">↩️</button>
-            <button type="button" class="icon-btn" id="btn-reply-all" title="Reply all">🔁</button>
-            <button type="button" class="icon-btn" id="btn-forward" title="Forward">➡️</button>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-reply"
+              title="Reply"
+              aria-label="Reply"
+            >
+              <img
+                src="/static/svg/reply.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-reply-all"
+              title="Reply all"
+              aria-label="Reply all"
+            >
+              <img
+                src="/static/svg/reply-all.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-forward"
+              title="Forward"
+              aria-label="Forward"
+            >
+              <img
+                src="/static/svg/forward.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
+
             <span class="toolbar-spacer"></span>
-            <button type="button" class="icon-btn" id="btn-move" title="Move">📂</button>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-move"
+              title="Move"
+              aria-label="Move"
+            >
+              <img
+                src="/static/svg/folder.svg"
+                alt=""
+                aria-hidden="true"
+                class="icon-img"
+              />
+            </button>
           </div>
+
 
           <!-- Move panel (toggles on Move) -->
           <div id="move-panel" class="move-panel hidden">
@@ -207,8 +297,14 @@
           id="composer-close"
           class="composer-header-link"
           title="Close"
+          aria-label="Close"
         >
-          ×
+          <img
+            src="/static/svg/close.svg"
+            alt=""
+            aria-hidden="true"
+            class="icon-img"
+          />
         </button>
       </div>
     </div>

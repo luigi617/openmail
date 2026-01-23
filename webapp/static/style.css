@@ -75,6 +75,17 @@ main.layout {
 
 /* --- Generic card shell (used outside main columns: composer etc.) --- */
 
+.icon-img {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.icon-btn .icon-img {
+  width: 18px;
+  height: 18px;
+}
+
 .card {
   background: var(--detail-bg);
   border-radius: var(--radius-lg);
