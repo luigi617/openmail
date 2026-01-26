@@ -143,7 +143,7 @@ main.layout {
 /* Search input inside the pill */
 .search-input {
   flex: 1;
-  border: none!important;
+  border: none !important;
   background: transparent;
   box-shadow: none;
   padding: 0.3rem 0.5rem;
@@ -151,11 +151,9 @@ main.layout {
   font-size: 0.8rem;
 }
 
-/* Remove global input focus look for this specific input */
 .search-input:focus {
   border: none !important;
   outline: none;
-  border: none;
   box-shadow: none;
 }
 
@@ -167,8 +165,8 @@ main.layout {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 999px;
-  border: 1px solid #d2d5de;        /* same border */
-  background: rgba(255, 255, 255, 0.8); /* same background */
+  border: 1px solid #d2d5de;
+  background: rgba(255, 255, 255, 0.8);
   color: #111827;
   padding: 0;
   cursor: pointer;
@@ -176,7 +174,7 @@ main.layout {
 }
 
 .search-btn:hover {
-  background: #e5e5ea;              /* same hover gray */
+  background: #e5e5ea;
 }
 
 .search-btn:active {
@@ -186,19 +184,7 @@ main.layout {
 .search-btn .icon-img {
   width: 14px;
   height: 14px;
-  opacity: 0.85;                     /* match subtle icon look */
-}
-
-
-/* Search input */
-.block-label {
-  display: block;
-  font-size: 0.8rem;
-  margin-bottom: 0.35rem;
-}
-
-.block-label input[type="text"] {
-  margin-top: 0.2rem;
+  opacity: 0.85;
 }
 
 /* Base inputs ----------------------------------------------------- */
@@ -356,11 +342,6 @@ button.primary:hover {
   margin-bottom: 0.3rem;
 }
 
-.legend-sub {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
 .legend-list {
   overflow-y: auto;
   padding-right: 0.1rem;
@@ -374,6 +355,11 @@ button.primary:hover {
   padding: 0.20rem 0.45rem;
   border-radius: 12px;
   font-size: 0.78rem;
+}
+
+/* highlight active legend account (matches state.filterAccounts) */
+.legend-item.active {
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .legend-color-dot {
@@ -498,18 +484,12 @@ button.primary:hover {
 .email-subject {
   font-size: 0.83rem;
   line-height: 1.25em;
-
-  /* Allow wrapping */
   white-space: normal;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;         /* show max 2 lines */
   -webkit-box-orient: vertical;
-
-  /* Reserve space for 2 lines */
   min-height: calc(2 * 1.25em);
-
-  /* Optional for consistent wrap behavior */
   word-break: break-word;
 }
 
@@ -530,10 +510,7 @@ button.primary:hover {
 .detail-card {
   border-radius: 0;
   box-shadow: none;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-  border-bottom: none;
+  border: none;
   padding: 0.55rem 0.9rem 0.75rem;
   height: 100vh;
   display: flex;
@@ -680,7 +657,6 @@ button.secondary.small {
 
 /* Floating composer – bottom-right web panel */
 
-/* Floating composer – bottom-right web panel */
 .composer {
   position: fixed;
   right: 1.5rem;
@@ -698,8 +674,6 @@ button.secondary.small {
   display: flex;
   flex-direction: column;
   z-index: 999;
-
-  /* window is resized via the (invisible) top-left corner */
   resize: none;
   overflow: hidden;
 }
@@ -728,7 +702,7 @@ button.secondary.small {
   width: 16px;
   height: 16px;
   cursor: nwse-resize;
-  z-index: 10;        /* ✅ sit above the header so it’s clickable */
+  z-index: 10;
   pointer-events: auto;
 }
 
@@ -749,7 +723,6 @@ button.secondary.small {
   align-items: center;
   gap: 0.25rem;
 }
-
 
 .composer-icon-btn {
   border: none;
@@ -818,15 +791,15 @@ button.secondary.small {
   cursor: pointer;
 }
 
-/* attachments bar (now between body and footer) */
+/* attachments bar */
 
 .composer-attachments {
-  padding: 0.4rem 0.75rem; /* a bit more padding */
+  padding: 0.4rem 0.75rem;
   border-top: 1px solid #e5e5ea;
   border-bottom: 1px solid #e5e5ea;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem; /* slightly bigger gap between pills */
+  gap: 0.35rem;
   font-size: 0.78rem;
   background: #ffffff;
 }
@@ -836,9 +809,9 @@ button.secondary.small {
   align-items: center;
   gap: 0.4rem;
   border-radius: 999px;
-  padding: 0.25rem 0.7rem; /* a bit more padding */
+  padding: 0.25rem 0.7rem;
   background: #f3f4f6;
-  cursor: pointer;          /* card is clickable (preview) */
+  cursor: pointer;
 }
 
 .attachment-pill:hover {
@@ -865,7 +838,7 @@ button.secondary.small {
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
-  text-decoration: none; /* no text underline for icon */
+  text-decoration: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -935,9 +908,9 @@ button.secondary.small {
 
 .composer-editor {
   flex: 1;
-  min-height: 0; /* allow editor to shrink */
-  padding: 8px 10px; /* light padding */
-  display: flex; /* ensure textarea fills */
+  min-height: 0;
+  padding: 8px 10px;
+  display: flex;
   background: transparent;
 }
 
@@ -949,7 +922,7 @@ button.secondary.small {
   outline: none;
   resize: none;
   font: inherit;
-  padding: 4px 0; /* slight internal padding so cursor isn’t touching edges */
+  padding: 4px 0;
   box-sizing: border-box;
 }
 

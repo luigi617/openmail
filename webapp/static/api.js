@@ -4,7 +4,7 @@
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(
-        `Request failed: ${res.status} ${res.statusText} ${text ? "- " + text : ""}`
+        `Request failed: ${res.status} ${res.statusText}${text ? " - " + text : ""}`
       );
     }
     return res.json();

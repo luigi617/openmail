@@ -4,7 +4,7 @@ const state = {
   selectedId: null,    // uid composite key
   selectedOverview: null,
   selectedMessage: null,
-  filterAccounts: [], // legend filter (account)
+  filterAccounts: [],  // legend / mailbox account filter
   searchText: "",
   pageSize: 50,
   currentPage: 1,
@@ -83,8 +83,8 @@ function getEmailId(email) {
   return Utils.getEmailId(email);
 }
 
-function getMailboxDisplayName(email) {
-  return Utils.getMailboxDisplayName(email);
+function getMailboxDisplayName(mailbox) {
+  return Utils.getMailboxDisplayName(mailbox);
 }
 
 /* ------------------ Detail toolbar / move panel ------------------ */
@@ -222,7 +222,6 @@ function initComposer() {
     });
   }
 
-  // Extra fields (Cc/Bcc/Reply-To/Priority)
   // Extra fields (Cc/Bcc/Reply-To/Priority) – checkbox popup
   if (extraToggle && extraMenu) {
     const syncExtraMenuFromRows = () => {
@@ -234,7 +233,6 @@ function initComposer() {
         const row = document.querySelector(
           `.composer-row-extra[data-field="${field}"]`
         );
-        // checked if row is currently visible
         cb.checked = !!(row && !row.classList.contains("hidden"));
       });
     };
@@ -271,7 +269,6 @@ function initComposer() {
       if (!inside) extraMenu.classList.add("hidden");
     });
   }
-
 
   // Send later popup
   if (sendLaterToggle && sendLaterMenu) {
@@ -310,7 +307,7 @@ function initComposer() {
     });
   }
 
-  // Resize by dragging the top-right handle
+  // Resize by dragging the top-left hotspot
   if (resizeZone && composerEl) {
     let isResizing = false;
     let startX = 0;
@@ -363,16 +360,12 @@ function openComposer(mode) {
   const subjInput = document.getElementById("composer-subject");
   const bodyInput = document.getElementById("composer-body");
   const attachmentInput = document.getElementById("composer-attachment-input");
-  const extraRows = document.querySelectorAll(".composer-row-extra");
   const extraMenu = document.getElementById("composer-extra-menu");
   const sendLaterMenu = document.getElementById("composer-send-later-menu");
 
   if (!composer || !titleEl || !toInput || !subjInput || !bodyInput) return;
 
-  // reset extra fields and menus
-  // if (extraRows && extraRows.length) {
-  //   extraRows.forEach((row) => row.classList.add("hidden"));
-  // }
+  // reset menus
   if (extraMenu) extraMenu.classList.add("hidden");
   if (sendLaterMenu) sendLaterMenu.classList.add("hidden");
 
@@ -460,7 +453,6 @@ function renderComposerAttachments() {
     const pill = document.createElement("div");
     pill.className = "attachment-pill";
 
-    // filename
     const nameSpan = document.createElement("span");
     nameSpan.className = "attachment-pill-name";
     nameSpan.textContent = file.name;
@@ -468,21 +460,20 @@ function renderComposerAttachments() {
     const actions = document.createElement("div");
     actions.className = "attachment-pill-actions";
 
-    // 🔽 Download button with SVG icon
+    // Download button with SVG icon
     const downloadBtn = document.createElement("button");
     downloadBtn.type = "button";
     downloadBtn.className = "attachment-pill-btn attachment-pill-icon";
     downloadBtn.title = "Download";
 
     const downloadIcon = document.createElement("img");
-    downloadIcon.src = "/static/svg/download.svg"; // same dir as other svgs
+    downloadIcon.src = "/static/svg/download.svg";
     downloadIcon.alt = "";
     downloadIcon.className = "icon-img";
 
     downloadBtn.appendChild(downloadIcon);
 
     downloadBtn.addEventListener("click", (e) => {
-      // don't trigger card preview
       e.stopPropagation();
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
@@ -497,12 +488,10 @@ function renderComposerAttachments() {
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.textContent = "×";
-    removeBtn.className =
-      "attachment-pill-btn attachment-pill-remove";
+    removeBtn.className = "attachment-pill-btn attachment-pill-remove";
     removeBtn.title = "Remove attachment";
 
     removeBtn.addEventListener("click", (e) => {
-      // don't trigger card preview
       e.stopPropagation();
       const current = state.composerAttachmentsFiles || [];
       current.splice(index, 1);
@@ -516,7 +505,7 @@ function renderComposerAttachments() {
     pill.appendChild(nameSpan);
     pill.appendChild(actions);
 
-    // 🔽 Click the card itself to preview in a new tab
+    // Click the pill itself to preview in a new tab
     pill.addEventListener("click", () => {
       const url = URL.createObjectURL(file);
       window.open(url, "_blank");
@@ -877,20 +866,7 @@ function renderListAndPagination() {
   if (nextBtn) nextBtn.disabled = !state.nextCursor;
 }
 
-
 /* ------------------ Detail rendering ------------------ */
-
-function renderDetail() {
-  const placeholder = document.getElementById("detail-placeholder");
-  const detail = document.getElementById("email-detail");
-  if (!placeholder || !detail) return;
-
-  if (!state.selectedOverview) {
-    placeholder.classList.remove("hidden");
-    detail.classList.add("hidden");
-    return;
-  }
-}
 
 /**
  * Overview-only fallback (no full message)
@@ -1012,10 +988,8 @@ function renderDetailFromMessage(overview, msg) {
     }
 
     if (bodyHtmlEl._shadowRoot) {
-      // Optional: add a minimal baseline style for readability inside the email
       bodyHtmlEl._shadowRoot.innerHTML = `
         <style>
-          /* Baseline inside the email bubble only */
           :host {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 0.88rem;
@@ -1027,7 +1001,7 @@ function renderDetailFromMessage(overview, msg) {
         ${htmlBody}
       `;
     } else {
-      // Fallback for very old browsers – behaves like before
+      // Fallback for very old browsers
       bodyHtmlEl.innerHTML = htmlBody;
     }
   } else if (textBody && bodyTextEl) {
@@ -1060,7 +1034,7 @@ function renderMailboxList(mailboxData) {
 
   listEl.innerHTML = "";
 
-  // 🔹 "All inboxes" section at the very top
+  // "All inboxes" section at the very top
   const allGroup = document.createElement("div");
   allGroup.className = "mailbox-group";
 
@@ -1096,7 +1070,7 @@ function renderMailboxList(mailboxData) {
 
   allGroup.appendChild(allItem);
   listEl.appendChild(allGroup);
-  // 🔹 end "All inboxes" block
+  // end "All inboxes" block
 
   const entries = Object.entries(mailboxData || {});
   if (!entries.length) {
@@ -1178,7 +1152,6 @@ function renderMailboxList(mailboxData) {
   highlightMailboxSelection();
 }
 
-
 function highlightMailboxSelection() {
   const listEl = document.getElementById("mailbox-list");
   if (!listEl) return;
@@ -1198,7 +1171,8 @@ function highlightMailboxSelection() {
       isActive = isAllItem && mb === state.currentMailbox;
     } else {
       // Account‐specific mailbox selection
-      isActive = !isAllItem &&
+      isActive =
+        !isAllItem &&
         mb === state.currentMailbox &&
         acc &&
         activeAccounts.has(acc);
@@ -1211,7 +1185,6 @@ function highlightMailboxSelection() {
     }
   });
 }
-
 
 /* ------------------ Legend ------------------ */
 
@@ -1286,6 +1259,3 @@ function renderError(msg) {
     emptyEl.textContent = msg;
   }
 }
-
-
-

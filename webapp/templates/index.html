@@ -11,7 +11,7 @@
   <main class="layout">
     <!-- LEFT: filters + mailbox + legend -->
     <aside class="sidebar">
-      <!-- 1) Filters -->
+      <!-- 1) Search -->
       <section class="card">
         <h2>Search</h2>
         <div class="search-row">
@@ -36,7 +36,6 @@
           </button>
         </div>
       </section>
-
 
       <!-- 2) Mailboxes (info + list) -->
       <section class="card">
@@ -86,8 +85,6 @@
     <!-- RIGHT: full email detail -->
     <section class="detail">
       <section class="card detail-card">
-        <!-- No "Details" header to save vertical space -->
-
         <div id="detail-placeholder">
           <p class="placeholder-text">
             Select an email from the middle column to see its full content here.
@@ -192,7 +189,6 @@
             </button>
           </div>
 
-
           <!-- Move panel (toggles on Move) -->
           <div id="move-panel" class="move-panel hidden">
             <label>
@@ -224,9 +220,7 @@
     </section>
   </main>
 
-    <!-- Floating composer (bottom-right) -->
-
-    <!-- Floating composer (bottom-right) -->
+  <!-- Floating composer (bottom-right) -->
   <div id="composer" class="composer hidden">
     <!-- invisible resize hotspot in the top-left corner -->
     <div id="composer-resize-zone" class="composer-resize-zone"></div>
@@ -241,11 +235,11 @@
           title="Add attachment"
         >
           <img
-              src="/static/svg/attachment.svg"
-              alt=""
-              aria-hidden="true"
-              class="icon-img"
-            />
+            src="/static/svg/attachment.svg"
+            alt=""
+            aria-hidden="true"
+            class="icon-img"
+          />
         </button>
         <input
           type="file"
@@ -261,11 +255,11 @@
           title="Add emoji"
         >
           <img
-              src="/static/svg/emoji.svg"
-              alt=""
-              aria-hidden="true"
-              class="icon-img"
-            />
+            src="/static/svg/emoji.svg"
+            alt=""
+            aria-hidden="true"
+            class="icon-img"
+          />
         </button>
 
         <button
@@ -290,11 +284,11 @@
           title="Show fields"
         >
           <img
-              src="/static/svg/list.svg"
-              alt=""
-              aria-hidden="true"
-              class="icon-img"
-            />
+            src="/static/svg/list.svg"
+            alt=""
+            aria-hidden="true"
+            class="icon-img"
+          />
         </button>
 
         <div id="composer-extra-menu" class="composer-extra-menu hidden">
@@ -315,7 +309,6 @@
             Priority
           </label>
         </div>
-
 
         <!-- simple web-style close -->
         <button
@@ -407,11 +400,11 @@
       <div class="composer-editor">
         <textarea id="composer-body" placeholder=""></textarea>
       </div>
-    </div>
 
-    <!-- attachments shown between message and footer -->
-    <div id="composer-attachments" class="composer-attachments hidden">
-      <!-- pills added by JS -->
+      <!-- attachments moved inside composer-main via JS -->
+      <div id="composer-attachments" class="composer-attachments hidden">
+        <!-- pills added by JS -->
+      </div>
     </div>
 
     <div class="composer-footer">
@@ -443,8 +436,6 @@
       </div>
     </div>
   </div>
-
-
 
   <script src="/static/utils.js"></script>
   <script src="/static/api.js"></script>
