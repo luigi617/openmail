@@ -564,8 +564,10 @@ function openComposer(mode) {
     titleEl.textContent = "Message";
   }
 
-  if (mode === "reply" || mode === "reply_all" || mode === "forward") {
+  if (mode === "reply" || mode === "reply_all") {
     body = "\n" + buildQuotedOriginalBodyHtml();
+  } else if (mode === "forward") {
+    body = "\n" + buildForwardedOriginalBodyHtml();
   }
 
   // pre-fill To as pills when applicable
@@ -644,6 +646,77 @@ function buildQuotedOriginalBodyHtml() {
   return html.replace(/>\s+</g, "><").trim();
 }
 
+function buildForwardedOriginalBodyHtml() {
+  const ov = state.selectedOverview;
+  const msg = state.selectedMessage;
+
+  if (!ov && !msg) return "";
+
+  const fromObj = (msg && msg.from_email) || (ov && ov.from_email) || {};
+  let who;
+  if (fromObj.name && fromObj.email) {
+    who = `${fromObj.name} <${fromObj.email}>`;
+  } else {
+    who = fromObj.name || fromObj.email || "unknown sender";
+  }
+
+  const dateVal = (msg && msg.date) || (ov && ov.date);
+  let dateLine = "";
+  if (dateVal) {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const dateStr = d.toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      dateLine = dateStr;
+    } else {
+      dateLine = String(dateVal);
+    }
+  }
+
+  const originalSubj =
+    (msg && msg.subject) || (ov && ov.subject) || "(no subject)";
+
+  const toList = (msg && msg.to) || (ov && ov.to) || [];
+  const toAddr = formatAddressList(toList);
+
+  // Prefer original HTML so we keep formatting
+  let originalHtml = "";
+  if (msg && msg.html) {
+    originalHtml = msg.html;
+  } else if (msg && msg.text) {
+    originalHtml = `<pre>${escapeHtml(msg.text)}</pre>`;
+  } else if (ov && ov.snippet) {
+    originalHtml = `<pre>${escapeHtml(ov.snippet)}</pre>`;
+  }
+
+  const headerLines = [
+    "---------- Forwarded message ---------",
+    `From: ${who}`,
+    dateLine ? `Date: ${dateLine}` : null,
+    `Subject: ${originalSubj}`,
+    toAddr ? `To: ${toAddr}` : null,
+  ].filter(Boolean);
+
+  const headerHtml = headerLines
+    .map((line) => escapeHtml(line))
+    .join("<br>");
+
+  const html =
+    `<div class="forwarded-wrapper">` +
+    `<div class="forwarded-header">${headerHtml}</div>` +
+    (originalHtml ? `<br>${originalHtml}` : "") +
+    `</div>`;
+
+  // clean up whitespace between tags
+  return html.replace(/>\s+</g, "><").trim();
+}
 
 
 function renderComposerAttachments() {
@@ -1001,74 +1074,136 @@ function populateComposerFromOptions(selectedAccount) {
 
 async function sendCurrentComposer() {
   const mode = state.composerMode;
-  const toInput = document.getElementById("composer-to");
   const subjInput = document.getElementById("composer-subject");
-  const bodyText = getComposerBodyTextContent();
-  const bodyHtml = getComposerBodyHtmlContent();
   const sendBtn = document.getElementById("composer-send");
   const fromSelect = document.getElementById("composer-from");
+  const replyToInput = document.getElementById("composer-replyto");
+  const prioritySelect = document.getElementById("composer-priority");
 
-  if (!mode || !toInput || !subjInput || !bodyInput || !sendBtn) return;
+  if (!mode || !subjInput || !sendBtn) return;
 
-  const fromAddr = fromSelect && fromSelect.value ? fromSelect.value : null;
+  const bodyText = getComposerBodyTextContent();
+  const bodyHtml = getComposerBodyHtmlContent();
 
-  if (mode === "compose") {
-    // No generic compose/send API is defined in the provided backend.
-    alert("Compose/send is not wired to a backend endpoint yet.");
-    return;
-  }
+  const payloadBodyText = bodyText && bodyText.trim().length ? bodyText : "";
+  const payloadBodyHtml =
+    bodyHtml && typeof bodyHtml === "string" && bodyHtml.trim().length
+      ? bodyHtml
+      : null;
 
-  const ref = getSelectedRef();
-  if (!ref) {
-    alert("No email selected.");
-    return;
-  }
+  const fromAccount = fromSelect && fromSelect.value ? fromSelect.value : null;
+  const subject = subjInput.value || "";
 
-  const { account, mailbox, uid } = ref;
+  const toList = getAllAddressesForField("to");
+  const ccList = getAllAddressesForField("cc");
+  const bccList = getAllAddressesForField("bcc");
+
+  const replyToRaw = replyToInput ? replyToInput.value : "";
+  const replyToList = (replyToRaw || "")
+    .split(/[;,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const priority =
+    prioritySelect && prioritySelect.value ? prioritySelect.value : null;
+
+  const attachments = state.composerAttachmentsFiles || [];
 
   try {
     sendBtn.disabled = true;
 
-    if (mode === "reply") {
-      await Api.replyEmail({
-        account,
-        mailbox,
-        uid,
-        body: bodyText,
-        bodyHtml: null,
-        fromAddr: fromAddr,
-        quoteOriginal: false,
-      });
-    } else if (mode === "reply_all") {
-      await Api.replyAllEmail({
-        account,
-        mailbox,
-        uid,
-        body: bodyText,
-        bodyHtml: null,
-        fromAddr: fromAddr,
-        quoteOriginal: false,
-      });
-    } else if (mode === "forward") {
-      const toList = getAllAddressesForField("to");
+    if (mode === "compose") {
+      if (!fromAccount) {
+        alert("Please select a From account.");
+        return;
+      }
       if (!toList.length) {
         alert("Please specify at least one recipient.");
         return;
       }
 
-      await Api.forwardEmail({
-        account,
-        mailbox,
-        uid,
+      await Api.sendEmail({
+        account: fromAccount,
+        subject,
         to: toList,
-        body: bodyText || null,
-        bodyHtml: null,
-        fromAddr: fromAddr,
-        includeAttachments: true,
+        fromAddr: fromAccount,
+        cc: ccList,
+        bcc: bccList,
+        text: payloadBodyText,
+        html: payloadBodyHtml,
+        replyTo: replyToList,
+        priority,
+        attachments,
       });
     } else {
-      alert("Unknown composer mode.");
-      return;
+      const ref = getSelectedRef();
+      if (!ref) {
+        alert("No email selected.");
+        return;
+      }
+      const { account, mailbox, uid } = ref;
+
+      if (mode === "reply") {
+        await Api.replyEmail({
+          account,
+          mailbox,
+          uid,
+          body: payloadBodyText,
+          bodyHtml: payloadBodyHtml,
+          fromAddr: fromAccount,
+          quoteOriginal: false,
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject,
+          replyTo: replyToList,
+          priority,
+          attachments,
+        });
+      } else if (mode === "reply_all") {
+        await Api.replyAllEmail({
+          account,
+          mailbox,
+          uid,
+          body: payloadBodyText,
+          bodyHtml: payloadBodyHtml,
+          fromAddr: fromAccount,
+          quoteOriginal: false,
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject,
+          replyTo: replyToList,
+          priority,
+          attachments,
+        });
+      } else if (mode === "forward") {
+        if (!toList.length) {
+          alert("Please specify at least one recipient.");
+          return;
+        }
+
+        await Api.forwardEmail({
+          account,
+          mailbox,
+          uid,
+          to: toList,
+          body: payloadBodyText,
+          bodyHtml: payloadBodyHtml,
+          fromAddr: fromAccount,
+          includeOriginal: false,
+          includeAttachments: true,
+          cc: ccList,
+          bcc: bccList,
+          subject,
+          replyTo: replyToList,
+          priority,
+          attachments,
+        });
+      } else {
+        alert("Unknown composer mode.");
+        return;
+      }
     }
 
     closeComposer();
@@ -1080,6 +1215,7 @@ async function sendCurrentComposer() {
     sendBtn.disabled = false;
   }
 }
+
 
 /* ------------------ Archive / Delete helpers ------------------ */
 
@@ -1353,7 +1489,6 @@ function renderDetailFromOverviewOnly(overview) {
   const placeholder = document.getElementById("detail-placeholder");
   const detail = document.getElementById("email-detail");
   const bodyHtmlEl = document.getElementById("detail-body-html");
-  const bodyTextEl = document.getElementById("detail-body-text");
   const subjectEl = document.getElementById("detail-subject");
   const fromEl = document.getElementById("detail-from");
   const toEl = document.getElementById("detail-to");

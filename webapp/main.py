@@ -2,11 +2,11 @@ from datetime import datetime, timezone
 import os
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-from pydantic import BaseModel
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException, Query, APIRouter
+from fastapi import FastAPI, Request, HTTPException, Query, UploadFile
+from fastapi import Form, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,7 +17,7 @@ from email_management.models import EmailMessage, EmailOverview
 from email_management.imap import PagedSearchResult
 
 from email_service import parse_accounts
-from utils import encode_cursor, decode_cursor
+from utils import uploadfiles_to_attachments, build_extra_headers, encode_cursor, decode_cursor
 
 BASE = Path(__file__).parent
 
@@ -28,21 +28,6 @@ app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 load_dotenv(override=True)
 
 ACCOUNTS: Dict[str, EmailManager] = parse_accounts(os.getenv("ACCOUNTS", ""))
-
-
-class ReplyRequest(BaseModel):
-    body: str
-    body_html: Optional[str] = None
-    from_addr: Optional[str] = None
-    quote_original: bool = False
-
-
-class ForwardRequest(BaseModel):
-    to: List[str]
-    body: Optional[str] = None
-    body_html: Optional[str] = None
-    from_addr: Optional[str] = None
-    include_attachments: bool = True
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -242,7 +227,6 @@ def get_email_overview(
         },
     }
 
-
 @app.get("/api/emails/mailbox")
 def get_email_mailbox() -> Dict[str, List[str]]:
     """
@@ -271,8 +255,6 @@ def get_email(account: str, mailbox: str, email_id: int) -> dict:
     )
     return message.to_dict()
 
-
-
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/archive")
 def archive_email(account: str, mailbox: str, email_id: int) -> dict:
     """
@@ -299,7 +281,6 @@ def archive_email(account: str, mailbox: str, email_id: int) -> dict:
 
     return {"status": "ok", "action": "archive", "account": account, "mailbox": mailbox, "email_id": email_id}
 
-
 @app.delete("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}")
 def delete_email(account: str, mailbox: str, email_id: int) -> dict:
     """
@@ -318,102 +299,212 @@ def delete_email(account: str, mailbox: str, email_id: int) -> dict:
 
     return {"status": "ok", "action": "delete", "account": account, "mailbox": mailbox, "email_id": email_id}
 
-
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/reply")
-def reply_email(
+async def reply_email(
     account: str,
     mailbox: str,
     email_id: int,
-    payload: ReplyRequest,
+    body: str = Form(...),
+    body_html: Optional[str] = Form(None),
+    from_addr: Optional[str] = Form(None),
+    quote_original: bool = Form(True),
+    subject: Optional[str] = Form(None),
+    to: Optional[List[str]] = Form(None),
+    cc: Optional[List[str]] = Form(None),
+    bcc: Optional[List[str]] = Form(None),
+    reply_to: Optional[List[str]] = Form(None),
+    priority: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File([]),
 ) -> dict:
-    """
-    Reply to an email (given account, mailbox, email_id).
-    """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    original = manager.fetch_message_by_ref(
+    original: EmailMessage = manager.fetch_message_by_ref(
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachments=False,
     )
 
-    result = manager.reply(
-        original,
-        body=payload.body,
-        body_html=payload.body_html,
-        from_addr=payload.from_addr,
-        quote_original=payload.quote_original,
+    attachment_models = await uploadfiles_to_attachments(attachments)
+    extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
+
+    send_result = manager.reply(
+        original=original,
+        body=body,
+        body_html=body_html,
+        from_addr=from_addr,
+        quote_original=quote_original,
+        to=to,
+        cc=cc,
+        bcc=bcc,
+        subject=subject,
+        attachments=attachment_models or None,
+        extra_headers=extra_headers or None,
     )
 
-    return {"status": "ok", "action": "reply", "account": account, "mailbox": mailbox, "email_id": email_id, "result": result.to_dict()}
+    return {
+        "status": "ok",
+        "action": "reply",
+        "account": account,
+        "mailbox": mailbox,
+        "email_id": email_id,
+        "result": getattr(send_result, "to_dict", lambda: str(send_result))(),
+    }
 
 
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/reply-all")
-def reply_all_email(
+async def reply_all_email(
     account: str,
     mailbox: str,
     email_id: int,
-    payload: ReplyRequest,
+    body: str = Form(...),
+    body_html: Optional[str] = Form(None),
+    from_addr: Optional[str] = Form(None),
+    quote_original: bool = Form(True),
+    subject: Optional[str] = Form(None),
+    to: Optional[List[str]] = Form(None),
+    cc: Optional[List[str]] = Form(None),
+    bcc: Optional[List[str]] = Form(None),
+    reply_to: Optional[List[str]] = Form(None),
+    priority: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File([]),
 ) -> dict:
-    """
-    Reply-all to an email (given account, mailbox, email_id).
-    """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    original = manager.fetch_message_by_ref(
+    original: EmailMessage = manager.fetch_message_by_ref(
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachments=False,
     )
 
-    result = manager.reply_all(
-        original,
-        body=payload.body,
-        body_html=payload.body_html,
-        from_addr=payload.from_addr,
-        quote_original=payload.quote_original,
+    attachment_models = await uploadfiles_to_attachments(attachments)
+    extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
+
+    send_result = manager.reply_all(
+        original=original,
+        body=body,
+        body_html=body_html,
+        from_addr=from_addr,
+        quote_original=quote_original,
+        to=to,
+        cc=cc,
+        bcc=bcc,
+        subject=subject,
+        attachments=attachment_models or None,
+        extra_headers=extra_headers or None,
     )
 
-    return {"status": "ok", "action": "reply_all", "account": account, "mailbox": mailbox, "email_id": email_id, "result": result.to_dict()}
-
+    return {
+        "status": "ok",
+        "action": "reply_all",
+        "account": account,
+        "mailbox": mailbox,
+        "email_id": email_id,
+        "result": getattr(send_result, "to_dict", lambda: str(send_result))(),
+    }
 
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/forward")
-def forward_email(
+async def forward_email(
     account: str,
     mailbox: str,
     email_id: int,
-    payload: ForwardRequest,
+    to: List[str] = Form(...),
+    body: Optional[str] = Form(None),
+    body_html: Optional[str] = Form(None),
+    from_addr: Optional[str] = Form(None),
+    include_original: bool = Form(True),
+    include_attachments: bool = Form(True),
+    cc: Optional[List[str]] = Form(None),
+    bcc: Optional[List[str]] = Form(None),
+    subject: Optional[str] = Form(None),
+    reply_to: Optional[List[str]] = Form(None),
+    priority: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File([]),
 ) -> dict:
-    """
-    Forward an email (given account, mailbox, email_id).
-    """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    if not payload.to:
-        raise HTTPException(status_code=400, detail="'to' must contain at least one recipient")
-
-    original = manager.fetch_message_by_ref(
+    original: EmailMessage = manager.fetch_message_by_ref(
         EmailRef(mailbox=mailbox, uid=email_id),
-        include_attachments=payload.include_attachments,
+        include_attachments=True,
     )
 
-    result = manager.forward(
-        original,
-        to=payload.to,
-        body=payload.body,
-        body_html=payload.body_html,
-        from_addr=payload.from_addr,
-        include_attachments=payload.include_attachments,
+    attachment_models = await uploadfiles_to_attachments(attachments)
+    extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
+
+    send_result = manager.forward(
+        original=original,
+        to=to,
+        body=body,
+        body_html=body_html,
+        from_addr=from_addr,
+        include_original=include_original,
+        include_attachments=include_attachments,
+        cc=cc,
+        bcc=bcc,
+        subject=subject,
+        attachments=attachment_models or None,
+        extra_headers=extra_headers or None,
     )
 
-    return {"status": "ok", "action": "forward", "account": account, "mailbox": mailbox, "email_id": email_id, "result": result.to_dict()}
+    return {
+        "status": "ok",
+        "action": "forward",
+        "account": account,
+        "mailbox": mailbox,
+        "email_id": email_id,
+        "result": getattr(send_result, "to_dict", lambda: str(send_result))(),
+    }
+
+@app.post("/api/accounts/{account:path}/send")
+async def send_email(
+    account: str,
+    subject: str = Form(...),
+    to: List[str] = Form(...),
+    from_addr: Optional[str] = Form(None),
+    cc: Optional[List[str]] = Form(None),
+    bcc: Optional[List[str]] = Form(None),
+    text: Optional[str] = Form(None),
+    html: Optional[str] = Form(None),
+    reply_to: Optional[List[str]] = Form(None),
+    priority: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File([]),
+) -> dict:
+    account = unquote(account)
+
+    manager = ACCOUNTS.get(account)
+    if manager is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    attachment_models = await uploadfiles_to_attachments(attachments)
+    extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
+
+    send_result = manager.compose_and_send(
+        subject=subject,
+        to=to,
+        from_addr=from_addr or account,
+        cc=cc or [],
+        bcc=bcc or [],
+        text=text,
+        html=html,
+        attachments=attachment_models or None,
+        extra_headers=extra_headers or None,
+    )
+
+    return {
+        "status": "ok",
+        "action": "send",
+        "account": account,
+        "result": getattr(send_result, "to_dict", lambda: str(send_result))(),
+    }

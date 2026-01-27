@@ -55,35 +55,88 @@
       return getJSON(url, { method: "DELETE" });
     },
 
-    async replyEmail({ account, mailbox, uid, body, bodyHtml, fromAddr, quoteOriginal }) {
+    async replyEmail({
+      account,
+      mailbox,
+      uid,
+      body,
+      bodyHtml,
+      fromAddr,
+      quoteOriginal,
+      to,
+      cc,
+      bcc,
+      subject,
+      replyTo,
+      priority,
+      attachments,
+    }) {
       const url = buildEmailUrl(account, mailbox, uid, "/reply");
-      const payload = {
-        body: body || "",
-        body_html: bodyHtml || null,
-        from_addr: fromAddr || null,
-        quote_original: !!quoteOriginal,
-      };
+      const form = new FormData();
+
+      form.append("body", body || "");
+      if (bodyHtml) form.append("body_html", bodyHtml);
+      if (fromAddr) form.append("from_addr", fromAddr);
+      form.append("quote_original", quoteOriginal ? "true" : "false");
+      if (subject) form.append("subject", subject);
+
+      (to || []).forEach((addr) => form.append("to", addr));
+      (cc || []).forEach((addr) => form.append("cc", addr));
+      (bcc || []).forEach((addr) => form.append("bcc", addr));
+      (replyTo || []).forEach((addr) => form.append("reply_to", addr));
+      if (priority) form.append("priority", priority);
+
+      (attachments || []).forEach((file) => {
+        form.append("attachments", file);
+      });
+
       return getJSON(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: form,
       });
     },
 
-    async replyAllEmail({ account, mailbox, uid, body, bodyHtml, fromAddr, quoteOriginal }) {
+        async replyAllEmail({
+      account,
+      mailbox,
+      uid,
+      body,
+      bodyHtml,
+      fromAddr,
+      quoteOriginal,
+      to,
+      cc,
+      bcc,
+      subject,
+      replyTo,
+      priority,
+      attachments,
+    }) {
       const url = buildEmailUrl(account, mailbox, uid, "/reply-all");
-      const payload = {
-        body: body || "",
-        body_html: bodyHtml || null,
-        from_addr: fromAddr || null,
-        quote_original: !!quoteOriginal,
-      };
+      const form = new FormData();
+
+      form.append("body", body || "");
+      if (bodyHtml) form.append("body_html", bodyHtml);
+      if (fromAddr) form.append("from_addr", fromAddr);
+      form.append("quote_original", quoteOriginal ? "true" : "false");
+      if (subject) form.append("subject", subject);
+
+      (to || []).forEach((addr) => form.append("to", addr));
+      (cc || []).forEach((addr) => form.append("cc", addr));
+      (bcc || []).forEach((addr) => form.append("bcc", addr));
+      (replyTo || []).forEach((addr) => form.append("reply_to", addr));
+      if (priority) form.append("priority", priority);
+
+      (attachments || []).forEach((file) => {
+        form.append("attachments", file);
+      });
+
       return getJSON(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: form,
       });
     },
+
 
     async forwardEmail({
       account,
@@ -93,22 +146,79 @@
       body,
       bodyHtml,
       fromAddr,
+      includeOriginal,
       includeAttachments,
+      cc,
+      bcc,
+      subject,
+      replyTo,
+      priority,
+      attachments,
     }) {
       const url = buildEmailUrl(account, mailbox, uid, "/forward");
-      const payload = {
-        to: to || [],
-        body: body || null,
-        body_html: bodyHtml || null,
-        from_addr: fromAddr || null,
-        include_attachments: includeAttachments !== false,
-      };
+      const form = new FormData();
+
+      (to || []).forEach((addr) => form.append("to", addr));
+      if (body != null) form.append("body", body);
+      if (bodyHtml) form.append("body_html", bodyHtml);
+      if (fromAddr) form.append("from_addr", fromAddr);
+      form.append("include_original", includeOriginal ? "true" : "false");
+      form.append("include_attachments", includeAttachments !== false ? "true" : "false");
+      if (subject) form.append("subject", subject);
+
+      (cc || []).forEach((addr) => form.append("cc", addr));
+      (bcc || []).forEach((addr) => form.append("bcc", addr));
+      (replyTo || []).forEach((addr) => form.append("reply_to", addr));
+      if (priority) form.append("priority", priority);
+
+      (attachments || []).forEach((file) => {
+        form.append("attachments", file);
+      });
+
       return getJSON(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: form,
       });
     },
+
+    async sendEmail({
+      account,
+      subject,
+      to,
+      fromAddr,
+      cc,
+      bcc,
+      text,
+      html,
+      replyTo,
+      priority,
+      attachments,
+    }) {
+      const a = encodeURIComponent(account);
+      const url = `/api/accounts/${a}/send`;
+      const form = new FormData();
+
+      form.append("subject", subject || "");
+      (to || []).forEach((addr) => form.append("to", addr));
+      if (fromAddr) form.append("from_addr", fromAddr);
+      (cc || []).forEach((addr) => form.append("cc", addr));
+      (bcc || []).forEach((addr) => form.append("bcc", addr));
+      if (text != null) form.append("text", text);
+      if (html) form.append("html", html);
+      (replyTo || []).forEach((addr) => form.append("reply_to", addr));
+      if (priority) form.append("priority", priority);
+
+      (attachments || []).forEach((file) => {
+        form.append("attachments", file);
+      });
+
+      return getJSON(url, {
+        method: "POST",
+        body: form,
+      });
+    },
+
+
   };
 
   global.Api = Api;

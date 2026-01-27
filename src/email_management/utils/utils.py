@@ -1,6 +1,6 @@
 import html as _html
 from datetime import datetime, timezone, timedelta
-from email.utils import getaddresses, formataddr
+from email.utils import getaddresses, formataddr, parsedate_to_datetime
 import re
 from typing import Optional, Dict, List
 
@@ -86,7 +86,7 @@ def build_email_context(msg: EmailMessage) -> str:
         f"Body:\n{body}\n"
     )
 
-def quote_original_text(original: EmailMessage) -> str:
+def quote_original_reply_text(original: EmailMessage) -> str:
     """
     Build a plain-text quoted block of the original email, e.g.:
 
@@ -109,7 +109,7 @@ def quote_original_text(original: EmailMessage) -> str:
     quoted_body_lines = [f"> {line}" for line in body.splitlines()] if body else []
     return "\n".join([header, *quoted_body_lines])
 
-def quote_original_html(original: EmailMessage) -> str:
+def quote_original_reply_html(original: EmailMessage) -> str:
     """
     Build an HTML quoted block of the original email.
 
@@ -137,6 +137,62 @@ def quote_original_html(original: EmailMessage) -> str:
         body_html = "<blockquote><em>(no body)</em></blockquote>"
 
     return f"<p>{header_html}</p>\n{body_html}"
+
+def quote_forward_text(original: EmailMessage) -> str:
+    """
+    Build the quoted plain text block for a forwarded message.
+    """
+    quoted_lines: List[str] = []
+    quoted_lines.append("")
+    quoted_lines.append("---- Forwarded message ----")
+    quoted_lines.append(f"From: {original.from_email}")
+    if original.to:
+        quoted_lines.append(f"To: {', '.join(original.to)}")
+    if original.cc:
+        quoted_lines.append(f"Cc: {', '.join(original.cc)}")
+    if original.date:
+        quoted_lines.append(f"Date: {original.date.isoformat()}")
+    if original.subject:
+        quoted_lines.append(f"Subject: {original.subject}")
+    quoted_lines.append("")
+    if original.text:
+        quoted_lines.append(original.text)
+
+    return "\n".join(quoted_lines)
+
+def quote_forward_html(original: EmailMessage) -> Optional[str]:
+    """
+    Build the quoted HTML block for a forwarded message.
+    """
+
+    if not (original.html or original.text):
+        return None
+
+    html_parts: List[str] = []
+
+    html_parts.append("<hr>")
+    html_parts.append("<p>---- Forwarded message ----</p>")
+
+    header_lines: List[str] = []
+    header_lines.append(f"From: {original.from_email}")
+    if original.to:
+        header_lines.append(f"To: {', '.join(original.to)}")
+    if original.cc:
+        header_lines.append(f"Cc: {', '.join(original.cc)}")
+    if original.date:
+        header_lines.append(f"Date: {original.date.isoformat()}")
+    if original.subject:
+        header_lines.append(f"Subject: {original.subject}")
+
+    header_html = "<br>".join(_html.escape(line) for line in header_lines)
+    html_parts.append(f"<p>{header_html}</p>")
+
+    if original.html:
+        html_parts.append(original.html)
+    else:
+        html_parts.append("<pre>" + _html.escape(original.text or "") + "</pre>")
+
+    return "\n".join(html_parts)
 
 def parse_list_mailbox_name(raw: bytes | str) -> str | None:
         """
@@ -195,9 +251,6 @@ def looks_binary(text: str) -> bool:
         return False
     control_chars = sum(ch < " " for ch in text)
     return (control_chars / len(text)) > 0.3
-
-from datetime import datetime, timezone, timedelta
-from email.utils import parsedate_to_datetime
 
 def best_effort_date(date_header: str | None,
                       internaldate_raw: str | None) -> datetime | None:
