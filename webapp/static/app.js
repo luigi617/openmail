@@ -1623,7 +1623,7 @@ async function fetchOverview(direction = null) {
   }
 }
 
-async function fetchEmailDetail(overview) {
+async function fetchEmailMessage(overview) {
   if (!overview) {
     renderDetailFromOverviewOnly(overview);
     return;
@@ -1742,7 +1742,7 @@ function renderListAndPagination() {
       state.selectedOverview = email;
       state.selectedMessage = null;
       renderListAndPagination(); // refresh selected state
-      fetchEmailDetail(email);   // get full message from backend
+      fetchEmailMessage(email);   // get full message from backend
     });
 
     listEl.appendChild(card);

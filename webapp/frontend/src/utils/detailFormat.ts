@@ -1,9 +1,8 @@
 // src/utils/detailFormat.ts
 import { formatDate, formatAddressList } from "./emailFormat";
-import type { OverviewLike } from "../types/legacy";
-import type { MessageLike } from "../types/message";
+import type { EmailOverview, EmailMessage } from "../types/email";
 
-export function getDetailHeader(overview: OverviewLike | null, msg: MessageLike | null) {
+export function getDetailHeader(overview: EmailOverview | null, msg: EmailMessage | null) {
   const subj = msg?.subject || overview?.subject || "(no subject)";
   const fromObj = msg?.from_email || overview?.from_email;
   const fromAddr = fromObj?.name || fromObj?.email || "(unknown sender)";
@@ -21,6 +20,5 @@ export function getDetailHeader(overview: OverviewLike | null, msg: MessageLike 
     dateLine: `Date: ${dateVerbose}`,
     html: msg?.html || "",
     text: msg?.text || "",
-    snippet: overview?.snippet || "",
   };
 }

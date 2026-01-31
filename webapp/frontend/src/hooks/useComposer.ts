@@ -3,9 +3,8 @@ import { useCallback, useMemo, useState } from "react";
 import { EmailApi } from "../api/emailApi";
 import type { ComposerExtraFieldKey, ComposerMode, ComposerState } from "../types/composer";
 import type { Priority } from "../types/shared";
-import type { MailboxData, OverviewLike } from "../types/legacy";
-import type { MessageLike } from "../types/message";
-import type { EmailKey } from "../types/email";
+import type { MailboxData, EmailOverview, EmailMessage } from "../types/email";
+import type { EmailRef } from "../types/shared";
 import { buildForwardedOriginalBodyHtml, buildQuotedOriginalBodyHtml } from "../utils/messageBuilders";
 import { formatAddress, formatAddressList } from "../utils/emailFormat";
 
@@ -45,9 +44,9 @@ function guessDraftsMailbox(mailboxes?: string[]): string | undefined {
 
 export function useComposer(args: {
   mailboxData: MailboxData; // account -> mailboxes
-  selectedOverview: OverviewLike | null;
-  selectedMessage: MessageLike | null;
-  getSelectedRef: () => EmailKey | null;
+  selectedOverview: EmailOverview | null;
+  selectedMessage: EmailMessage | null;
+  getSelectedRef: () => EmailRef | null;
 
   showCloseConfirm: (cfg: { onSaveDraft: () => Promise<void>; onDiscard: () => void }) => void;
 }) {
@@ -63,7 +62,8 @@ export function useComposer(args: {
     replyToRaw: "",
     priority: "medium",
     fromAccount: "",
-    bodyHtml: "",
+    text: "",
+    html: "",
     attachments: [],
     error: "",
   }));
@@ -71,7 +71,7 @@ export function useComposer(args: {
   const accounts = useMemo(() => Object.keys(args.mailboxData || {}), [args.mailboxData]);
 
   const hasContent = useMemo(() => {
-    const bodyText = stripHtmlToText(state.bodyHtml || "");
+    const bodyText = stripHtmlToText(state.html || "");
     return (
       state.to.length > 0 ||
       state.cc.length > 0 ||
@@ -248,7 +248,7 @@ export function useComposer(args: {
     const priority = state.priority; // always set
     const attachments = state.attachments;
 
-    const html = (state.bodyHtml || "").trim();
+    const html = (state.html || "").trim();
     const text = stripHtmlToText(html);
 
     if (!fromAccount) {
@@ -261,7 +261,7 @@ export function useComposer(args: {
       return;
     }
 
-    let ref: EmailKey | null = null;
+    let ref: EmailRef | null = null;
     if (mode !== "compose") {
       ref = args.getSelectedRef();
       if (!ref) {
@@ -288,8 +288,8 @@ export function useComposer(args: {
       } else if (mode === "reply") {
         await EmailApi.replyEmail({
           ...ref!,
-          body: text,
-          bodyHtml: html || undefined,
+          text: text,
+          html: html || undefined,
           fromAddr: fromAccount,
           quoteOriginal: false,
           to: toList,
@@ -303,8 +303,8 @@ export function useComposer(args: {
       } else if (mode === "reply_all") {
         await EmailApi.replyAllEmail({
           ...ref!,
-          body: text,
-          bodyHtml: html || undefined,
+          text: text,
+          html: html || undefined,
           fromAddr: fromAccount,
           quoteOriginal: false,
           to: toList,
@@ -319,8 +319,8 @@ export function useComposer(args: {
         await EmailApi.forwardEmail({
           ...ref!,
           to: toList,
-          body: text,
-          bodyHtml: html || undefined,
+          text: text,
+          html: html || undefined,
           fromAddr: fromAccount,
           includeOriginal: false,
           includeAttachments: true,
@@ -361,7 +361,7 @@ export function useComposer(args: {
     const replyToList = splitRawList(state.replyToRaw);
     const priority = state.priority;
 
-    const html = (state.bodyHtml || "").trim();
+    const html = (state.html || "").trim();
     const text = stripHtmlToText(html);
 
     const attachments = state.attachments;

@@ -23,12 +23,11 @@ export type ComposerState = {
   // keep raw string for UI input, parse later if needed
   replyToRaw: string;
 
-  // UI allows empty selection
   priority: Priority;
 
   fromAccount: string;
-  bodyHtml: string;
-
+  text: string;
+  html: string;
   attachments: File[];
 
   error: string;

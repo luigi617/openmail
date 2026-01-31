@@ -2,7 +2,7 @@
 export type AppModalButtonVariant = "primary" | "secondary";
 
 export type AppModalButton = {
-  id: string;
+  id: number;
   label: string;
   variant: AppModalButtonVariant;
   onClick: () => void;

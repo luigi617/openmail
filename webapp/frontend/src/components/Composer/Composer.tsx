@@ -9,6 +9,12 @@ import { useComposerResize } from "../../hooks/useComposerResize";
 import type { ComposerExtraFieldKey } from "../../types/composer";
 import type { Priority } from "../../types/shared";
 
+import listIcon from "@/assets/svg/list.svg";
+import attachmentIcon from "@/assets/svg/attachment.svg";
+import emojiIcon from "@/assets/svg/emoji.svg";
+import minimizeIcon from "@/assets/svg/minimize.svg";
+import closeIcon from "@/assets/svg/close.svg";
+
 export type ComposerProps = {
   open: boolean;
   onClose: () => void;
@@ -86,7 +92,7 @@ export default function Composer(props: ComposerProps) {
               props.onToggleExtraMenu();
             }}
           >
-            <img src="/static/svg/list.svg" alt="" aria-hidden="true" className="icon-img" />
+            <img src={listIcon} alt="" aria-hidden="true" className="icon-img" />
           </button>
 
           <ComposerExtraMenu
@@ -103,7 +109,7 @@ export default function Composer(props: ComposerProps) {
             title="Add attachment"
             onClick={() => fileInputRef.current?.click()}
           >
-            <img src="/static/svg/attachment.svg" alt="" aria-hidden="true" className="icon-img" />
+            <img src={attachmentIcon} alt="" aria-hidden="true" className="icon-img" />
           </button>
 
           <input
@@ -119,7 +125,7 @@ export default function Composer(props: ComposerProps) {
           />
 
           <button type="button" id="composer-emoji" className="composer-icon-btn" title="Add emoji">
-            <img src="/static/svg/emoji.svg" alt="" aria-hidden="true" className="icon-img" />
+            <img src={emojiIcon} alt="" aria-hidden="true" className="icon-img" />
           </button>
 
           <button type="button" id="composer-format" className="composer-icon-btn" title="Format text">
@@ -139,7 +145,7 @@ export default function Composer(props: ComposerProps) {
             title="Minimize"
             onClick={props.onMinimizeToggle}
           >
-            <img src="/static/svg/minimize.svg" alt="" aria-hidden="true" className="icon-img" />
+            <img src={minimizeIcon} alt="" aria-hidden="true" className="icon-img" />
           </button>
 
           <button
@@ -150,7 +156,7 @@ export default function Composer(props: ComposerProps) {
             aria-label="Close"
             onClick={props.onClose}
           >
-            <img src="/static/svg/close.svg" alt="" aria-hidden="true" className="icon-img" />
+            <img src={closeIcon} alt="" aria-hidden="true" className="icon-img" />
           </button>
         </div>
       </div>
@@ -228,7 +234,17 @@ export default function Composer(props: ComposerProps) {
 
           <ComposerEditor value={props.bodyHtml} onChange={props.onBodyHtmlChange} />
 
-          <ComposerAttachments files={props.attachments} visible={props.attachments.length > 0} onRemove={props.onRemoveAttachmentAt} />
+          <ComposerAttachments 
+            files={props.attachments}
+            visible={props.attachments.length > 0}
+            onRemove={props.onRemoveAttachmentAt} 
+            onPreview={(file) => {
+              const url = URL.createObjectURL(file);
+              window.open(url, "_blank", "noopener,noreferrer");
+              // optional cleanup (delay so the tab has time to load)
+              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            }}
+          />
         </div>
       )}
 

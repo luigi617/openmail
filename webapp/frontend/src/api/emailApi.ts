@@ -1,6 +1,7 @@
 // src/api/emailApi.ts
 import { requestJSON } from "./http";
-import type { EmailKey, Mailbox } from "../types/email";
+import type { Mailbox } from "../types/email";
+import type { EmailRef } from "../types/shared";
 import type {
   ForwardParams,
   OverviewParams,
@@ -28,8 +29,8 @@ function appendFiles(form: FormData, key: string, files?: File[]) {
 function buildReplyForm(args: ReplyParams): FormData {
   const form = new FormData();
 
-  form.append("body", args.body || "");
-  if (args.bodyHtml) form.append("body_html", args.bodyHtml);
+  form.append("text", args.text || "");
+  if (args.html) form.append("html", args.html);
   if (args.fromAddr) form.append("from_addr", args.fromAddr);
   form.append("quote_original", args.quoteOriginal ? "true" : "false");
   if (args.subject) form.append("subject", args.subject);
@@ -49,7 +50,7 @@ function buildReplyForm(args: ReplyParams): FormData {
 }
 
 async function replyImpl<T>(endpointSuffix: "/reply" | "/reply-all", args: ReplyParams): Promise<T> {
-  const url = buildEmailUrl(args.account, args.mailbox, args.uid, endpointSuffix);
+  const url = buildEmailUrl(args.account, args.mailbox, args.uid.toString(), endpointSuffix);
   const form = buildReplyForm(args);
   return requestJSON<T>(url, { method: "POST", body: form });
 }
@@ -79,28 +80,28 @@ export const EmailApi = {
   },
 
   // GET single email
-  async getEmail<T>(key: EmailKey): Promise<T> {
-    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid));
+  async getEmail<T>(key: EmailRef): Promise<T> {
+    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid.toString()));
   },
 
   // POST archive
-  async archiveEmail<T>(key: EmailKey): Promise<T> {
-    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid, "/archive"), {
+  async archiveEmail<T>(key: EmailRef): Promise<T> {
+    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid.toString(), "/archive"), {
       method: "POST",
     });
   },
 
   // DELETE
-  async deleteEmail<T>(key: EmailKey): Promise<T> {
-    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid), { method: "DELETE" });
+  async deleteEmail<T>(key: EmailRef): Promise<T> {
+    return requestJSON<T>(buildEmailUrl(key.account, key.mailbox, key.uid.toString()), { method: "DELETE" });
   },
 
   // POST move (FormData destination_mailbox)
-  async moveEmail<T>(args: EmailKey & { destinationMailbox: string }): Promise<T> {
+  async moveEmail<T>(args: EmailRef & { destinationMailbox: string }): Promise<T> {
     const form = new FormData();
     form.append("destination_mailbox", args.destinationMailbox);
 
-    return requestJSON<T>(buildEmailUrl(args.account, args.mailbox, args.uid, "/move"), {
+    return requestJSON<T>(buildEmailUrl(args.account, args.mailbox, args.uid.toString(), "/move"), {
       method: "POST",
       body: form,
     });
@@ -118,13 +119,13 @@ export const EmailApi = {
 
   // POST forward
   async forwardEmail<T>(args: ForwardParams): Promise<T> {
-    const url = buildEmailUrl(args.account, args.mailbox, args.uid, "/forward");
+    const url = buildEmailUrl(args.account, args.mailbox, args.uid.toString(), "/forward");
     const form = new FormData();
 
     appendMany(form, "to", args.to);
 
-    if (args.body != null) form.append("body", args.body);
-    if (args.bodyHtml) form.append("body_html", args.bodyHtml);
+    if (args.text != null) form.append("text", args.text);
+    if (args.html) form.append("html", args.html);
     if (args.fromAddr) form.append("from_addr", args.fromAddr);
 
     form.append("include_original", args.includeOriginal ? "true" : "false");

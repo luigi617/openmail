@@ -25,7 +25,7 @@ export function useAppModal() {
         buttons:
           cfg.buttons && cfg.buttons.length
             ? cfg.buttons
-            : [{ id: "ok", label: "OK", variant: "primary", onClick: close }],
+            : [{ id: 1, label: "OK", variant: "primary", onClick: close }],
       });
     },
     [close]
@@ -46,7 +46,7 @@ export function useAppModal() {
           message: args.message ?? "",
           buttons: [
             {
-              id: "cancel",
+              id: 1,
               label: args.cancelLabel ?? "Cancel",
               variant: args.cancelVariant ?? "secondary",
               onClick: () => {
@@ -55,7 +55,7 @@ export function useAppModal() {
               },
             },
             {
-              id: "confirm",
+              id: 2,
               label: args.confirmLabel ?? "OK",
               variant: args.confirmVariant ?? "primary",
               onClick: () => {

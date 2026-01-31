@@ -1,23 +1,20 @@
 // src/utils/messageBuilders.ts
 import { escapeHtml, formatAddressList } from "./emailFormat";
-import type { OverviewLike } from "../types/legacy";
-import type { Address } from "../types/address";
-import type { MessageLike } from "../types/message";
+import type { EmailOverview, EmailMessage, EmailAddress } from "../types/email";
 
-function senderLabel(fromObj?: Address) {
+function senderLabel(fromObj?: EmailAddress) {
   if (!fromObj) return "unknown sender";
   if (fromObj.name && fromObj.email) return `${fromObj.name} <${fromObj.email}>`;
   return fromObj.name || fromObj.email || "unknown sender";
 }
 
-function preferOriginalHtml(msg?: MessageLike | null, ov?: OverviewLike | null) {
+function preferOriginalHtml(msg?: EmailMessage | null, ov?: EmailOverview | null) {
   if (msg?.html) return msg.html;
   if (msg?.text) return `<pre>${escapeHtml(msg.text)}</pre>`;
-  if (ov?.snippet) return `<pre>${escapeHtml(ov.snippet)}</pre>`;
   return "";
 }
 
-export function buildQuotedOriginalBodyHtml(overview: OverviewLike | null, msg: MessageLike | null) {
+export function buildQuotedOriginalBodyHtml(overview: EmailOverview | null, msg: EmailMessage | null) {
   if (!overview && !msg) return "";
 
   const fromObj = msg?.from_email || overview?.from_email;
@@ -49,7 +46,7 @@ export function buildQuotedOriginalBodyHtml(overview: OverviewLike | null, msg: 
   return html.replace(/>\s+</g, "><").trim();
 }
 
-export function buildForwardedOriginalBodyHtml(overview: OverviewLike | null, msg: MessageLike | null) {
+export function buildForwardedOriginalBodyHtml(overview: EmailOverview | null, msg: EmailMessage | null) {
   if (!overview && !msg) return "";
 
   const fromObj = msg?.from_email || overview?.from_email;

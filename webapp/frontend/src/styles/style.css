@@ -1036,6 +1036,37 @@ button.secondary.small {
 
 /* footer with Send + Send later */
 
+/* remove native button chrome inside attachment pills */
+.attachment-pill button {
+  border: none !important;
+  outline: none !important;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* filename button */
+.attachment-pill-main {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* remove (X) button */
+.attachment-pill-remove {
+  font-size: 0.8rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* prevent focus ring from showing borders */
+.attachment-pill button:focus,
+.attachment-pill button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+
 .composer-footer {
   padding: 0.45rem 0.75rem 0.5rem;
   display: flex;
@@ -1196,4 +1227,105 @@ button.secondary.small {
 
 .composer-error {
   margin-left: 1rem;
+}
+
+
+.detail-attachments {
+  margin-top: 0.15rem;
+}
+
+.detail-attachments-title {
+  margin: 0 0 0.35rem 0;
+}
+
+/* horizontal strip */
+.detail-attachments-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.1rem 0.35rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* subtle scrollbar that fits your look */
+.detail-attachments-strip::-webkit-scrollbar {
+  height: 8px;
+}
+.detail-attachments-strip::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+.detail-attachments-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* attachment card */
+.attachment-card {
+  flex: 0 0 auto;
+  width: 240px;
+  min-width: 220px;
+  max-width: 280px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f5f5f7; /* matches detail-body shell */
+  box-shadow: none;
+
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+}
+
+.attachment-card:hover {
+  background: #ededf0;
+  border-color: #d1d5db;
+}
+
+.attachment-card:active {
+  transform: translateY(0.5px);
+}
+
+/* keyboard focus */
+.attachment-card:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.28);
+}
+
+.attachment-card.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.attachment-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* show full name but keep it tidy */
+.attachment-card-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-card-action {
+  flex: 0 0 auto;
+}
+
+.attachment-card-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

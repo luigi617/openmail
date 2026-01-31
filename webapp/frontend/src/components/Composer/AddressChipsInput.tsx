@@ -16,7 +16,13 @@ function splitAddresses(raw: string): string[] {
     .filter(Boolean);
 }
 
-export function AddressChipsInput({ fieldId, placeholder, value, onChange, className }: Props) {
+export function AddressChipsInput({
+  fieldId,
+  placeholder,
+  value,
+  onChange,
+  className,
+}: Props) {
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -37,7 +43,12 @@ export function AddressChipsInput({ fieldId, placeholder, value, onChange, class
     <div className="composer-address-wrapper" data-field={fieldId.replace("composer-", "")}>
       <div className="composer-address-pills">
         {value.map((addr, idx) => (
-          <span key={`${addr}-${idx}`} className="composer-address-pill">
+          <span
+            key={`${addr}-${idx}`}
+            className="composer-address-pill"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => e.preventDefault()}
+          >
             <span className="composer-address-pill-text">{addr}</span>
             <button
               type="button"
@@ -45,7 +56,7 @@ export function AddressChipsInput({ fieldId, placeholder, value, onChange, class
               title="Remove"
               onClick={() => removeAt(idx)}
             >
-              ×
+              x
             </button>
           </span>
         ))}
@@ -54,6 +65,7 @@ export function AddressChipsInput({ fieldId, placeholder, value, onChange, class
       <input
         ref={inputRef}
         id={fieldId}
+        type="text"
         className={className}
         placeholder={placeholder}
         value={draft}
@@ -63,13 +75,8 @@ export function AddressChipsInput({ fieldId, placeholder, value, onChange, class
             e.preventDefault();
             commit();
           } else if (e.key === "Backspace" && !draft) {
-            // pop last chip
             if (value.length) onChange(value.slice(0, -1));
           }
-        }}
-        onBlur={() => {
-          // commit pending addresses on blur (more consistent with typical email UX)
-          commit();
         }}
       />
     </div>

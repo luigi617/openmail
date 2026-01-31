@@ -1,10 +1,14 @@
 // src/hooks/useEmailApp.ts
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmailApi } from "../api/emailApi";
-import type { EmailKey } from "../types/email";
-import type { MailboxData, OverviewLike } from "../types/legacy";
-import type { MessageLike } from "../types/message";
-import { buildColorMap, findAccountForEmail, getColorForEmail, getEmailId } from "../utils/emailFormat";
+import type { EmailRef } from "../types/shared";
+import type { MailboxData, EmailOverview, EmailMessage } from "../types/email";
+import {
+  buildColorMap,
+  findAccountForEmail,
+  getColorForEmail,
+  getEmailId,
+} from "../utils/emailFormat";
 
 export function useEmailAppCore() {
   // mailbox state
@@ -15,7 +19,7 @@ export function useEmailAppCore() {
   const [filterAccounts, setFilterAccounts] = useState<string[]>([]);
 
   // overview + paging (cursor-based)
-  const [emails, setEmails] = useState<OverviewLike[]>([]);
+  const [emails, setEmails] = useState<EmailOverview[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [prevCursor, setPrevCursor] = useState<string | null>(null);
 
@@ -28,14 +32,14 @@ export function useEmailAppCore() {
 
   // selection + detail
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedOverview, setSelectedOverview] = useState<OverviewLike | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<MessageLike | null>(null);
+  const [selectedOverview, setSelectedOverview] = useState<EmailOverview | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null);
 
   // errors (inline)
   const [listError, setListError] = useState<string>("");
   const [detailError, setDetailError] = useState<string>("");
 
-  // derived: color map
+  // derived: color map (single source of truth)
   const colorMap = useMemo(() => buildColorMap(emails, mailboxData), [emails, mailboxData]);
 
   // derived: filtered list (keep it simple & fast)
@@ -45,28 +49,27 @@ export function useEmailAppCore() {
 
     return emails.filter((e) => {
       const subject = (e.subject || "").toLowerCase();
-      const snippet = (e.snippet || "").toLowerCase();
       const from = `${e.from_email?.name ?? ""} ${e.from_email?.email ?? ""}`.toLowerCase();
-      return subject.includes(q) || snippet.includes(q) || from.includes(q);
+      return subject.includes(q) || from.includes(q);
     });
   }, [emails, searchText]);
 
   const emptyList = filteredEmails.length === 0;
 
-  const getSelectedRef = useCallback((): EmailKey | null => {
+  const getSelectedRef = useCallback((): EmailRef | null => {
     const ov = selectedOverview;
     if (!ov) return null;
 
-    const account = ov.ref?.account ?? ov.account;
-    const mailbox = ov.ref?.mailbox ?? ov.mailbox ?? currentMailbox;
-    const uid = ov.ref?.uid ?? ov.uid;
+    const account = ov.ref.account;
+    const mailbox = ov.ref.mailbox ?? currentMailbox;
+    const uid = ov.ref.uid;
 
     if (!account || !mailbox || uid == null) return null;
 
     return {
       account: String(account),
       mailbox: String(mailbox),
-      uid: String(uid),
+      uid: uid,
     };
   }, [selectedOverview, currentMailbox]);
 
@@ -87,11 +90,14 @@ export function useEmailAppCore() {
       try {
         setListError("");
 
+        // Decide cursor usage
         let useCursor: string | undefined;
 
-        if (direction === "next" && nextCursor) {
+        if (direction === "next") {
+          if (!nextCursor) return; // no-op if no next page
           useCursor = nextCursor;
-        } else if (direction === "prev" && prevCursor) {
+        } else if (direction === "prev") {
+          if (!prevCursor) return; // no-op if no prev page
           useCursor = prevCursor;
         } else {
           // fresh load
@@ -99,10 +105,11 @@ export function useEmailAppCore() {
           setCurrentPage(1);
         }
 
-        const payload = await EmailApi.getOverview<OverviewLike>({
+        const payload = await EmailApi.getOverview<EmailOverview>({
           mailbox: currentMailbox,
           limit: pageSize,
           cursor: useCursor,
+          // apply account filter only on a fresh load (cursor pagination should keep its own server-side context)
           accounts: useCursor ? undefined : filterAccounts.length ? [...filterAccounts] : undefined,
         });
 
@@ -110,6 +117,8 @@ export function useEmailAppCore() {
         const meta = payload.meta ?? {};
 
         setEmails(list);
+
+        // reset selection on new list
         setSelectedId(null);
         setSelectedOverview(null);
         setSelectedMessage(null);
@@ -142,11 +151,11 @@ export function useEmailAppCore() {
     [currentMailbox, pageSize, nextCursor, prevCursor, filterAccounts]
   );
 
-  const fetchEmailDetail = useCallback(
-    async (overview: OverviewLike) => {
-      const account = overview.ref?.account ?? overview.account;
-      const mailbox = overview.ref?.mailbox ?? overview.mailbox ?? currentMailbox;
-      const uid = overview.ref?.uid ?? overview.uid;
+  const fetchEmailMessage = useCallback(
+    async (overview: EmailOverview) => {
+      const account = overview.ref.account;
+      const mailbox = overview.ref.mailbox ?? currentMailbox;
+      const uid = overview.ref.uid;
 
       if (!account || !mailbox || uid == null) {
         setSelectedMessage(null);
@@ -156,11 +165,13 @@ export function useEmailAppCore() {
       try {
         setDetailError("");
         setSelectedMessage(null);
-        const msg = await EmailApi.getEmail<MessageLike>({
+
+        const msg = await EmailApi.getEmail<EmailMessage>({
           account: String(account),
           mailbox: String(mailbox),
-          uid: String(uid),
+          uid: uid,
         });
+
         setSelectedMessage(msg);
       } catch (e) {
         console.error("Error fetching email detail:", e);
@@ -171,32 +182,30 @@ export function useEmailAppCore() {
     [currentMailbox]
   );
 
-  // initial load
+  // initial: mailboxes
   useEffect(() => {
     void fetchMailboxes();
-    void fetchOverview(null);
-  }, [fetchMailboxes, fetchOverview]);
+  }, [fetchMailboxes]);
+
 
   const selectEmail = useCallback(
-    (email: OverviewLike) => {
+    (email: EmailOverview) => {
       const id = getEmailId(email);
       setSelectedId(id || null);
       setSelectedOverview(email);
       setSelectedMessage(null);
-      void fetchEmailDetail(email);
+      void fetchEmailMessage(email);
     },
-    [fetchEmailDetail]
+    [fetchEmailMessage]
   );
 
-  const legendColorMap = useMemo(() => buildColorMap(emails, mailboxData), [emails, mailboxData]);
   const legendAccounts = useMemo(() => Object.keys(mailboxData || {}), [mailboxData]);
-
 
   const helpers = useMemo(() => {
     return {
-      getEmailId: (e: OverviewLike) => getEmailId(e),
-      findAccountForEmail: (e: OverviewLike) => findAccountForEmail(e, mailboxData),
-      getColorForEmail: (e: OverviewLike) => getColorForEmail(e, mailboxData, colorMap),
+      getEmailId: (e: EmailOverview) => getEmailId(e),
+      findAccountForEmail: (e: EmailOverview) => findAccountForEmail(e, mailboxData),
+      getColorForEmail: (e: EmailOverview) => getColorForEmail(e, mailboxData, colorMap),
     };
   }, [mailboxData, colorMap]);
 
@@ -240,8 +249,10 @@ export function useEmailAppCore() {
     fetchMailboxes,
     fetchOverview,
 
+    // legend
     legendAccounts,
-    legendColorMap,
+    legendColorMap: colorMap,
+
     // helpers (id/color/account)
     helpers,
   };

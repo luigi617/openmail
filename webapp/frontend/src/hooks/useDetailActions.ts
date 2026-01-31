@@ -1,10 +1,10 @@
 // src/hooks/useDetailActions.ts
 import { useCallback } from "react";
 import { EmailApi } from "../api/emailApi";
-import type { EmailKey } from "../types/email";
+import type { EmailRef } from "../types/shared";
 
 export function useDetailActions(args: {
-  getSelectedRef: () => EmailKey | null;
+  getSelectedRef: () => EmailRef | null;
   refreshOverview: () => Promise<void> | void;
   confirm: (cfg: {
     title?: string;

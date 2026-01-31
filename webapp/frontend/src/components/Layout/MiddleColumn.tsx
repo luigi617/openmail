@@ -1,7 +1,7 @@
 import React from "react";
 import EmailsHeader from "../Middle/EmailsHeader";
 import EmailList from "../Middle/EmailList";
-import type { OverviewLike } from "../../types/legacy";
+import type { EmailOverview } from "../../types/email"
 
 export type MiddleColumnProps = {
   page: number;
@@ -10,13 +10,13 @@ export type MiddleColumnProps = {
   onNextPage: () => void;
   onCompose: () => void;
 
-  emails: OverviewLike[];
+  emails: EmailOverview[];
   emptyList: boolean;
   selectedEmailId: string | null;
-  onSelectEmail: (email: OverviewLike) => void;
+  onSelectEmail: (email: EmailOverview) => void;
 
-  getEmailId: (email: OverviewLike) => string;
-  getColorForEmail: (email: OverviewLike) => string;
+  getEmailId: (email: EmailOverview) => string;
+  getColorForEmail: (email: EmailOverview) => string;
 };
 
 export default function MiddleColumn(props: MiddleColumnProps) {

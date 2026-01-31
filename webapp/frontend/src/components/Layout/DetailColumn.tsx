@@ -1,22 +1,22 @@
 // src/components/Layout/DetailColumn.tsx
 import React, { useMemo, useState } from "react";
-import type { MailboxData, OverviewLike } from "../../types/legacy";
-import type { MessageLike } from "../../types/message";
+import type { EmailMessage, EmailOverview, MailboxData } from "../../types/email"
 import { getMailboxDisplayName } from "../../utils/emailFormat";
 import { getDetailHeader } from "../../utils/detailFormat";
 import DetailBody from "../Detail/DetailBody";
 import DetailToolbar from "../Detail/DetailToolbar";
+import DetailAttachments from "../Detail/DetailAttachments";
 
 export type DetailColumnProps = {
-  selectedOverview: OverviewLike | null;
-  selectedMessage: MessageLike | null;
+  selectedOverview: EmailOverview | null;
+  selectedMessage: EmailMessage | null;
 
   mailboxData: MailboxData;
   currentMailbox: string;
 
   detailError: string;
 
-  getColorForEmail: (email: OverviewLike) => string;
+  getColorForEmail: (email: EmailOverview) => string;
 
   onArchive: () => void;
   onDelete: () => void;
@@ -32,7 +32,7 @@ export default function DetailColumn(props: DetailColumnProps) {
   const moveOptions = useMemo(() => {
     const ov = props.selectedOverview;
     if (!ov) return [];
-    const account = ov.ref?.account ?? ov.account;
+    const account = ov.ref.account;
     if (!account) return [];
     return props.mailboxData[account] ?? [];
   }, [props.selectedOverview, props.mailboxData]);
@@ -140,7 +140,19 @@ export default function DetailColumn(props: DetailColumnProps) {
               </div>
               <hr />
 
-              <DetailBody html={header.html} text={header.text} overviewSnippet={header.snippet} />
+              <DetailBody html={header.html} text={header.text} />
+              {/* ✅ Attachments like DetailBody: separate component */}
+              {props.selectedMessage && props.selectedMessage.attachments.length > 0 && (
+                <>
+                  <hr />
+                  <DetailAttachments 
+                    attachments={props.selectedMessage?.attachments} 
+                    account={props.selectedMessage.ref.account}
+                    email_id={props.selectedMessage.ref.uid}
+                    mailbox={props.selectedMessage.ref.mailbox}
+                  />
+                </>
+              )}
             </>
           )}
         </div>

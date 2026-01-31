@@ -1,6 +1,6 @@
 // src/utils/emailFormat.ts
-import type { Address } from "../types/address";
-import type { MailboxData, OverviewLike } from "../types/legacy";
+import type { EmailAddress, EmailOverview, MailboxData } from "../types/email";
+
 
 export const COLOR_PALETTE = [
   "#f97316",
@@ -44,19 +44,19 @@ export function escapeHtml(str: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-export function formatAddress(addr?: Address | null): string {
+export function formatAddress(addr?: EmailAddress | null): string {
   if (!addr) return "";
   if (addr.name && addr.email) return `${addr.name} <${addr.email}>`;
   if (addr.name) return addr.name;
   return addr.email || "";
 }
 
-export function formatAddressList(list?: Address[] | null): string {
+export function formatAddressList(list?: EmailAddress[] | null): string {
   if (!Array.isArray(list)) return "";
   return list.map(formatAddress).filter(Boolean).join(", ");
 }
 
-export function getEmailId(email?: OverviewLike | null): string {
+export function getEmailId(email?: EmailOverview | null): string {
   if (!email) return "";
   const ref = email.ref || {};
   if (ref.uid != null) {
@@ -64,17 +64,15 @@ export function getEmailId(email?: OverviewLike | null): string {
     const mailbox = ref.mailbox || "";
     return `${account}:${mailbox}:${String(ref.uid)}`;
   }
-  if (email.uid != null) return String(email.uid);
-  return "";
+  return email.ref.uid.toString();
 }
 
-export function getAccountKey(email?: OverviewLike | null): string {
+export function getAccountKey(email?: EmailOverview | null): string {
   if (!email) return "unknown";
-  const ref = email.ref || {};
-  return ref.account || email.account || "unknown";
+  return email.ref.account || "unknown";
 }
 
-export function findAccountForEmail(email: OverviewLike | null | undefined, mailboxData: MailboxData): string {
+export function findAccountForEmail(email: EmailOverview | null | undefined, mailboxData: MailboxData): string {
   if (!email) return "unknown";
 
   const ref = email.ref || {};
@@ -94,8 +92,8 @@ export function findAccountForEmail(email: OverviewLike | null | undefined, mail
     if (toEmails.has(String(account).toLowerCase())) return account;
   }
 
-  if (email.to_address) {
-    const rawTo = String(email.to_address).toLowerCase();
+  if (email.to) {
+    const rawTo = String(email.to).toLowerCase();
     for (const account of mailboxAccounts) {
       if (rawTo.includes(String(account).toLowerCase())) return account;
     }
@@ -104,7 +102,7 @@ export function findAccountForEmail(email: OverviewLike | null | undefined, mail
   return getAccountKey(email);
 }
 
-export function buildColorMap(emails: OverviewLike[], mailboxData: MailboxData): Record<string, string> {
+export function buildColorMap(emails: EmailOverview[], mailboxData: MailboxData): Record<string, string> {
   const map: Record<string, string> = {};
   let colorIndex = 0;
 
@@ -127,7 +125,7 @@ export function buildColorMap(emails: OverviewLike[], mailboxData: MailboxData):
 }
 
 export function getColorForEmail(
-  email: OverviewLike,
+  email: EmailOverview,
   mailboxData: MailboxData,
   colorMap: Record<string, string>
 ): string {

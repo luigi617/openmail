@@ -48,6 +48,7 @@ export default function App() {
             variant: "secondary",
             onClick: () => {
               onDiscard();
+              modal.close();
             },
           },
           {
@@ -76,8 +77,6 @@ export default function App() {
         return "Message";
     }
   }, [composer.state.open, composer.state.mode]);
-
-  const accounts = useMemo(() => Object.keys(core.mailboxData || {}), [core.mailboxData]);
 
   // Fetch on mailbox / legend changes.
   // Note: search is local-only (filters core.emails) so does not trigger fetch.

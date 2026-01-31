@@ -14,21 +14,19 @@ function htmlToText(html: string) {
 export type DetailBodyProps = {
   html?: string | null;
   text?: string | null;
-  overviewSnippet?: string | null;
 };
 
 export default function DetailBody(props: DetailBodyProps) {
   const html = props.html ?? "";
   const text = props.text ?? "";
-  const snippet = props.overviewSnippet ?? "";
 
   const hasHtml = html.trim().length > 0;
 
   const derivedText = useMemo(() => {
     if (text.trim().length) return text;
     if (hasHtml) return htmlToText(html);
-    return snippet;
-  }, [text, hasHtml, html, snippet]);
+    return "";
+  }, [text, hasHtml, html]);
 
   if (hasHtml) {
     return (
@@ -38,6 +36,6 @@ export default function DetailBody(props: DetailBodyProps) {
     );
   }
 
-  const safeText = derivedText.trim().length ? derivedText : "(no body)";
+  const safeText = derivedText.trim().length ? derivedText : "";
   return <pre className="detail-body text">{safeText}</pre>;
 }

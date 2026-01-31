@@ -3,7 +3,7 @@ import React from "react";
 import SearchCard from "../Sidebar/SearchCard";
 import MailboxesCard from "../Sidebar/MailboxesCard";
 import LegendCard from "../Sidebar/LegendCard";
-import type { MailboxData } from "../../types/legacy";
+import type { MailboxData } from "../../types/email"
 
 export type SidebarProps = {
   searchQuery: string;

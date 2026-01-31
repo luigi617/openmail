@@ -1,20 +1,20 @@
 import React from "react";
-import type { OverviewLike } from "../../types/legacy";
+import type { EmailOverview } from "../../types/email";
 import { formatDate } from "../../utils/emailFormat";
 
 export type EmailListProps = {
-  emails: OverviewLike[];
+  emails: EmailOverview[];
   selectedEmailId: string | null;
-  getColorForEmail: (e: OverviewLike) => string;
-  getEmailId: (e: OverviewLike) => string;
-  onSelectEmail: (email: OverviewLike) => void;
+  getColorForEmail: (e: EmailOverview) => string;
+  getEmailId: (e: EmailOverview) => string;
+  onSelectEmail: (email: EmailOverview) => void;
 };
 
-function stableFallbackKey(email: OverviewLike, index: number) {
+function stableFallbackKey(email: EmailOverview, index: number) {
   // Prefer a deterministic key even if getEmailId is empty
-  const a = email.ref?.account ?? email.account ?? "";
-  const m = email.ref?.mailbox ?? email.mailbox ?? "";
-  const u = email.ref?.uid ?? email.uid ?? "";
+  const a = email.ref.account ?? "";
+  const m = email.ref.mailbox ?? "";
+  const u = email.ref.uid ?? "";
   const raw = `${a}:${m}:${String(u)}`;
   return raw !== "::" ? raw : `row-${index}`;
 }
