@@ -25,7 +25,20 @@ def _decode(value: Optional[str]) -> str:
     except Exception:
         return value
     
-def _decode_body_chunk(chunk: bytes, msg: PyMessage) -> str:
+def decode_transfer(payload: bytes, cte: str | None) -> bytes:
+    if not cte:
+        return payload
+    cte = cte.strip().lower()
+
+    if cte == "base64":
+        # IMAP body often contains CRLF-wrapped base64
+        return base64.b64decode(payload)
+    if cte in ("quoted-printable", "quopri"):
+        return quopri.decodestring(payload)
+    # 7bit/8bit/binary: already “bytes”
+    return payload
+    
+def decode_body_chunk(chunk: bytes, msg: PyMessage) -> str:
     """
     Decode a body chunk using Content-Transfer-Encoding and charset
     from the given (headers-only) message.
@@ -130,6 +143,19 @@ def _extract_parts(msg: PyMessage) -> Tuple[Optional[str], Optional[str], List[A
 
     return text, html, atts
 
+def decode_section(mime_bytes: Optional[bytes], body_bytes: Optional[bytes]) -> str:
+    if not body_bytes:
+        return ""
+    if not mime_bytes:
+        # best effort fallback
+        try:
+            return body_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            return body_bytes.decode("latin-1", errors="replace")
+
+    msg = BytesParser(policy=default_policy).parsebytes(mime_bytes)
+    return _decode_body_chunk(body_bytes, msg)
+
 
 def parse_rfc822(
         ref: EmailRef,
@@ -168,6 +194,40 @@ def parse_rfc822(
         )
     except Exception as e:
         raise ParseError(f"Failed to parse RFC822: {e}") from e
+    
+
+def parse_headers_and_bodies(
+    ref: EmailRef,
+    header_bytes: bytes,
+    *,
+    text: str,
+    html: str,
+    attachments,
+    internaldate_raw: Optional[str] = None,
+) -> EmailMessage:
+    try:
+        msg_headers = BytesParser(policy=default_policy).parsebytes(header_bytes or b"")
+
+        headers: Dict[str, str] = {k: _decode(str(v)) for k, v in msg_headers.items()}
+        raw_date = msg_headers.get("Date")
+        msg_date = best_effort_date(raw_date, internaldate_raw)
+
+        return EmailMessage(
+            ref=ref,
+            subject=_decode(msg_headers.get("Subject")),
+            from_email=_parse_single_addr(msg_headers.get("From")),
+            to=_parse_addr_list(msg_headers.get("To")),
+            cc=_parse_addr_list(msg_headers.get("Cc")),
+            bcc=_parse_addr_list(msg_headers.get("Bcc")),
+            text=text or None,
+            html=html or None,
+            attachments=attachments,
+            date=msg_date,
+            message_id=_decode(msg_headers.get("Message-ID")),
+            headers=headers,
+        )
+    except Exception as e:
+        raise ParseError(f"Failed to parse headers/bodies: {e}") from e
     
 
 def parse_overview(

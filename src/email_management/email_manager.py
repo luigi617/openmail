@@ -114,6 +114,19 @@ class EmailManager:
         if not msgs:
             raise ValueError(f"No message found for ref: {ref!r}")
         return msgs[0]
+    
+    def fetch_attachment_by_ref_and_meta(
+        self,
+        ref: EmailRef,
+        attachment_part: str,
+    ) -> bytes:
+        """
+        Fetch exactly one EmailMessage by EmailRef.
+        """
+        attachment = self.imap.fetch_attachment(ref, attachment_part)
+        if not attachment:
+            raise ValueError(f"No attachment found for ref: {ref!r} and part: {attachment_part!r}")
+        return attachment
 
     def fetch_messages_by_multi_refs(
         self,
@@ -254,8 +267,8 @@ class EmailManager:
         self,
         original: EmailMessage,
         *,
-        body: str,
-        body_html: Optional[str] = None,
+        text: str,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
         quote_original: bool = False,
         to: Optional[Sequence[str]] = None,
@@ -302,16 +315,16 @@ class EmailManager:
 
         if quote_original:
             quoted_text = quote_original_reply_text(original)
-            text_body = body + "\n\n" + quoted_text if body else quoted_text
+            text_body = text + "\n\n" + quoted_text if text else quoted_text
 
-            if body_html is not None:
+            if html is not None:
                 quoted_html = quote_original_reply_html(original)
-                html_body = body_html + "<br><br>" + quoted_html
+                html_body = html + "<br><br>" + quoted_html
             else:
                 html_body = None
         else:
-            text_body = body
-            html_body = body_html
+            text_body = text
+            html_body = html
 
         msg = self.compose(
             subject=final_subject,
@@ -331,8 +344,8 @@ class EmailManager:
         self,
         original: EmailMessage,
         *,
-        body: str,
-        body_html: Optional[str] = None,
+        text: str,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
         quote_original: bool = False,
         to: Optional[Sequence[str]] = None,
@@ -390,16 +403,16 @@ class EmailManager:
 
         if quote_original:
             quoted_text = quote_original_reply_text(original)
-            text_body = body + "\n\n" + quoted_text if body else quoted_text
+            text_body = text + "\n\n" + quoted_text if text else quoted_text
 
-            if body_html is not None:
+            if html is not None:
                 quoted_html = quote_original_reply_html(original)
-                html_body = body_html + "<br><br>" + quoted_html
+                html_body = html + "<br><br>" + quoted_html
             else:
                 html_body = None
         else:
-            text_body = body
-            html_body = body_html
+            text_body = text
+            html_body = html
 
         msg = self.compose(
             subject=final_subject,
@@ -421,8 +434,8 @@ class EmailManager:
         original: EmailMessage,
         *,
         to: Sequence[str],
-        body: Optional[str] = None,
-        body_html: Optional[str] = None,
+        text: Optional[str] = None,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
         include_original: bool = False,
         include_attachments: bool = True,
@@ -439,18 +452,18 @@ class EmailManager:
             raise ValueError("forward(): 'to' must contain at least one recipient")
 
         text_parts: List[str] = []
-        if body:
-            text_parts.append(body)
+        if text:
+            text_parts.append(text)
         if include_original:
             text_parts.append(quote_forward_text(original))
         text_body = "\n".join(text_parts)
 
-        if body_html is not None:
-            html_body = body_html
+        if html is not None:
+            html_body = html
         else:
             html_parts: List[str] = []
-            if body:
-                html_parts.append(f"<p>{_html.escape(body)}</p>")
+            if text:
+                html_parts.append(f"<p>{_html.escape(text)}</p>")
             if include_original:
                 quoted_html = quote_forward_html(original)
                 if quoted_html is not None:
