@@ -1,15 +1,18 @@
 from datetime import datetime, timezone
+import io
+import mimetypes
 import os
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException, Query, UploadFile
+from fastapi import FastAPI, HTTPException, Query, Response, UploadFile
 from fastapi import Form, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+
 
 from email_management import EmailManager
 from email_management.types import EmailRef
@@ -17,21 +20,28 @@ from email_management.models import EmailMessage, EmailOverview
 from email_management.imap import PagedSearchResult
 
 from email_service import parse_accounts
-from utils import uploadfiles_to_attachments, build_extra_headers, encode_cursor, decode_cursor
+from utils import uploadfiles_to_attachments, build_extra_headers, encode_cursor, decode_cursor, safe_filename
 
 BASE = Path(__file__).parent
 
 app = FastAPI()
-templates = Jinja2Templates(directory=str(BASE / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 load_dotenv(override=True)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 ACCOUNTS: Dict[str, EmailManager] = parse_accounts(os.getenv("ACCOUNTS", ""))
 
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/api/emails/overview")
 def get_email_overview(
@@ -258,7 +268,66 @@ def get_email(account: str, mailbox: str, email_id: int) -> dict:
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachments=True,
     )
-    return message.to_dict()
+
+    data = message.to_dict()
+    data["ref"].setdefault("account", account)
+    return data
+
+@app.get("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/attachment")
+def download_email_attachment(
+    account: str,
+    mailbox: str,
+    email_id: int,
+    part: str = Query(..., description='IMAP part section for attachment, e.g. "2.1"'),
+    filename: str | None = Query(
+        None, description="Filename to use when downloading"
+    ),
+    content_type: str | None = Query(
+        None, description="MIME type, e.g. application/pdf"
+    ),
+) -> Response:
+    """
+    Download a single attachment by EmailRef + IMAP part.
+    """
+    account = unquote(account)
+    mailbox = unquote(mailbox)
+
+    manager = ACCOUNTS.get(account)
+    if manager is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    part = (part or "").strip()
+    if not part:
+        raise HTTPException(status_code=400, detail="part is required")
+
+    ref = EmailRef(mailbox=mailbox, uid=email_id)
+
+    try:
+        attachment_bytes = manager.fetch_attachment_by_ref_and_meta(ref, part)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch attachment: {e}")
+
+    filename = safe_filename(filename, fallback=f"email-{email_id}-part-{part}.bin")
+
+    resolved_content_type = (
+        content_type
+        or mimetypes.guess_type(filename)[0]
+        or "application/octet-stream"
+    )
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+
+    return StreamingResponse(
+        io.BytesIO(attachment_bytes),
+        media_type=resolved_content_type,
+        headers=headers,
+    )
+
+
 
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/archive")
 def archive_email(account: str, mailbox: str, email_id: int) -> dict:

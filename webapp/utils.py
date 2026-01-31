@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 from typing import Dict, List, Optional
 
 from fastapi import UploadFile
@@ -64,3 +65,10 @@ def build_extra_headers(
             )
 
     return headers
+
+def safe_filename(name: str, fallback: str = "attachment.bin") -> str:
+    if not name:
+        return fallback
+    name = name.strip().replace("\\", "_").replace("/", "_")
+    name = re.sub(r"[\x00-\x1f\x7f]+", "", name)
+    return name or fallback
