@@ -1,40 +1,51 @@
 from __future__ import annotations
-from email.parser import BytesParser
+
 import imaplib
-import time
 import re
 import threading
+import time
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence, Set, Dict, Tuple
 from email.message import EmailMessage as PyEmailMessage
+from email.parser import BytesParser
 from email.policy import default as default_policy
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
-from email_management.auth import AuthContext
 from email_management import IMAPConfig
+from email_management.auth import AuthContext
 from email_management.errors import ConfigError, IMAPError
-from email_management.imap.bodystructure import extract_bodystructure_from_fetch_meta, extract_text_and_attachments, parse_bodystructure, pick_best_text_parts
-from email_management.models import EmailMessage, EmailOverview, AttachmentMeta, Attachment
+from email_management.imap.bodystructure import (
+    extract_bodystructure_from_fetch_meta,
+    extract_text_and_attachments,
+    parse_bodystructure,
+    pick_best_text_parts,
+)
+from email_management.imap.pagination import PagedSearchResult
+from email_management.imap.parser import decode_body_chunk, decode_transfer, parse_headers_and_bodies, parse_overview
+from email_management.imap.query import IMAPQuery
 from email_management.types import EmailRef
 from email_management.utils import parse_list_mailbox_name
-
-from email_management.imap.query import IMAPQuery
-from email_management.imap.parser import decode_body_chunk, decode_transfer, parse_headers_and_bodies, parse_rfc822, parse_overview
-from email_management.imap.pagination import PagedSearchResult
+from email_management.models import EmailMessage, EmailOverview, AttachmentMeta
 
 UID_RE = re.compile(r"UID\s+(\d+)", re.IGNORECASE)
 INTERNALDATE_RE = re.compile(r'INTERNALDATE\s+"([^"]+)"', re.IGNORECASE)
 FLAGS_RE = re.compile(r"FLAGS\s*\(([^)]*)\)", re.IGNORECASE)
-HEADER_TOKEN_RE = re.compile(r"BODY\[HEADER\.FIELDS", re.IGNORECASE)
-TEXT_TOKEN_RE = re.compile(r"BODY\[TEXT]", re.IGNORECASE)
+
+# Used for parsing FETCH section results
 MIME_TOKEN_RE = re.compile(r"BODY\[(\d+(?:\.\d+)*)\.MIME\]", re.IGNORECASE)
 BODY_TOKEN_RE = re.compile(r"BODY\[(\d+(?:\.\d+)*)\]", re.IGNORECASE)
 HEADER_PEEK_RE = re.compile(r"BODY\[HEADER\]", re.IGNORECASE)
 
-def _extract_payload_from_fetch_item(item, data, i) -> Tuple[Optional[bytes], bool]:
+
+def _extract_payload_from_fetch_item(
+    item: tuple, data: list, i: int
+) -> Tuple[Optional[bytes], bool]:
     """
-    Returns (payload_bytes, used_next_element)
-    Mirrors your existing fetch parsing behavior.
+    Returns (payload_bytes, used_next_element).
+
+    imaplib can return:
+      - (meta, payload)
+      - (meta, None) then payload as next bytes item
     """
     raw = item[1] if len(item) > 1 and isinstance(item[1], (bytes, bytearray)) else None
     used_next = False
@@ -42,6 +53,7 @@ def _extract_payload_from_fetch_item(item, data, i) -> Tuple[Optional[bytes], bo
         raw = data[i + 1]
         used_next = True
     return raw, used_next
+
 
 @dataclass
 class IMAPClient:
@@ -51,6 +63,7 @@ class IMAPClient:
     _selected_mailbox: str | None = field(default=None, init=False, repr=False)
     _selected_readonly: bool | None = field(default=None, init=False, repr=False)
 
+    # cache key: (mailbox, criteria_str) -> ascending UID list
     _search_cache: Dict[tuple[str, str], List[int]] = field(default_factory=dict, init=False, repr=False)
 
     max_retries: int = 1
@@ -64,6 +77,9 @@ class IMAPClient:
             raise ConfigError("IMAP port required")
         return cls(config)
 
+    # -----------------------
+    # Connection management
+    # -----------------------
 
     def _open_new_connection(self) -> imaplib.IMAP4:
         cfg = self.config
@@ -86,7 +102,7 @@ class IMAPClient:
             raise IMAPError(f"IMAP network error: {e}") from e
 
     def _get_conn(self) -> imaplib.IMAP4:
-        # NOTE: must be called with self._lock held
+        # Must be called with self._lock held
         if self._conn is not None:
             return self._conn
         self._conn = self._open_new_connection()
@@ -95,7 +111,7 @@ class IMAPClient:
         return self._conn
 
     def _reset_conn(self) -> None:
-        # NOTE: must be called with self._lock held
+        # Must be called with self._lock held
         if self._conn is not None:
             try:
                 self._conn.logout()
@@ -105,15 +121,34 @@ class IMAPClient:
         self._selected_mailbox = None
         self._selected_readonly = None
 
-    def _format_mailbox_arg(self, mailbox: str) -> str:
+    def _run_with_conn(self, op: Callable[[imaplib.IMAP4], object]):
         """
-        Format a mailbox name for IMAP commands.
+        Run an operation with thread-safety and reconnect-on-abort retry.
+        """
+        last_exc: Optional[BaseException] = None
+        attempts = self.max_retries + 1
 
-        - Leaves INBOX as-is (special name).
-        - If already quoted, return as-is.
-        - Otherwise, wrap in double quotes so names with spaces or
-          special characters (e.g. "[Gmail]/All Mail") parse correctly.
-        """
+        for attempt in range(attempts):
+            with self._lock:
+                conn = self._get_conn()
+                try:
+                    return op(conn)
+                except imaplib.IMAP4.abort as e:
+                    last_exc = e
+                    self._reset_conn()
+                except imaplib.IMAP4.error as e:
+                    raise IMAPError(f"IMAP operation failed: {e}") from e
+
+            if attempt < attempts - 1 and self.backoff_seconds > 0:
+                time.sleep(self.backoff_seconds)
+
+        raise IMAPError(f"IMAP connection repeatedly aborted: {last_exc}") from last_exc
+
+    # -----------------------
+    # Mailbox selection helpers
+    # -----------------------
+
+    def _format_mailbox_arg(self, mailbox: str) -> str:
         if mailbox.upper() == "INBOX":
             return "INBOX"
         if mailbox.startswith('"') and mailbox.endswith('"'):
@@ -122,31 +157,28 @@ class IMAPClient:
 
     def _ensure_selected(self, conn: imaplib.IMAP4, mailbox: str, readonly: bool) -> None:
         """
-        Cache the selected mailbox to avoid repeated SELECT/EXAMINE.
-        - readonly=True -> EXAMINE
-        - readonly=False -> SELECT (read-write)
+        Cache selected mailbox to avoid repeated SELECT/EXAMINE.
+        RW selection satisfies both RW and RO operations.
+        RO selection satisfies only RO operations.
         """
         # Must be called with self._lock held.
-
         if self._selected_mailbox == mailbox:
-            if readonly or self._selected_readonly is False:
-                return
-        imap_mailbox = self._format_mailbox_arg(mailbox)
+            if self._selected_readonly is False:
+                return  # already RW
+            if readonly and self._selected_readonly is True:
+                return  # already RO and RO requested
 
+        imap_mailbox = self._format_mailbox_arg(mailbox)
         typ, _ = conn.select(imap_mailbox, readonly=readonly)
         if typ != "OK":
             raise IMAPError(f"select({mailbox!r}, readonly={readonly}) failed")
+
         self._selected_mailbox = mailbox
         self._selected_readonly = readonly
 
-    def _assert_same_mailbox(self, refs: Sequence["EmailRef"], op_name: str) -> str:
-        """
-        Ensure all EmailRefs share the same mailbox.
-        Returns the common mailbox name, or raises IMAPError.
-        """
+    def _assert_same_mailbox(self, refs: Sequence[EmailRef], op_name: str) -> str:
         if not refs:
             raise IMAPError(f"{op_name} called with empty refs")
-
         mailbox = refs[0].mailbox
         for r in refs:
             if r.mailbox != mailbox:
@@ -155,17 +187,29 @@ class IMAPClient:
                     f"(got {refs[0].mailbox!r} and {r.mailbox!r})"
                 )
         return mailbox
-    
+
+    # -----------------------
+    # Cache invalidation
+    # -----------------------
+
+    def _invalidate_search_cache(self, mailbox: Optional[str] = None) -> None:
+        """
+        Invalidate cached search results (simple + safe).
+        If mailbox is provided, only clear entries for that mailbox.
+        """
+        with self._lock:
+            if mailbox is None:
+                self._search_cache.clear()
+                return
+            keys = [k for k in self._search_cache.keys() if k[0] == mailbox]
+            for k in keys:
+                self._search_cache.pop(k, None)
+
+    # -----------------------
+    # LIST parsing
+    # -----------------------
+
     def _parse_list_flags(self, raw: bytes) -> Set[str]:
-        """
-        Parse the flags portion of an IMAP LIST response line.
-
-        Example raw:
-            b'(\\HasChildren \\Noselect) "/" "[Gmail]"'
-
-        Returns a set of upper-cased flag tokens, e.g.:
-            {"\\HASCHILDREN", "\\NOSELECT"}
-        """
         try:
             s = raw.decode(errors="ignore")
         except Exception:
@@ -180,62 +224,30 @@ class IMAPClient:
         if not flags_str:
             return set()
 
-        # Split on whitespace; normalize to upper-case
         return {f.upper() for f in flags_str.split() if f.strip()}
-    
-    def _run_with_conn(self, op):
-        """
-        Run an operation with a connection, handling:
-        - thread-safety (RLock)
-        - reconnect-on-abort (retry max_retries times)
 
-        `op` is a callable taking a single `imaplib.IMAP4` argument.
-        """
-        last_exc: Optional[BaseException] = None
-        attempts = self.max_retries + 1
-
-        for attempt in range(attempts):
-            with self._lock:
-                conn = self._get_conn()
-                try:
-                    return op(conn)
-                except imaplib.IMAP4.abort as e:
-                    # Connection died; reset and retry with a fresh one.
-                    last_exc = e
-                    self._reset_conn()
-                except imaplib.IMAP4.error as e:
-                    # Non-abort protocol error; don't retry
-                    raise IMAPError(f"IMAP operation failed: {e}") from e
-            if attempt < attempts - 1 and self.backoff_seconds > 0:
-                time.sleep(self.backoff_seconds)
-
-        raise IMAPError(f"IMAP connection repeatedly aborted: {last_exc}") from last_exc
+    # -----------------------
+    # SEARCH + pagination
+    # -----------------------
 
     def refresh_search_cache(self, *, mailbox: str, query: IMAPQuery) -> List[int]:
-        """
-        Refresh the cached UID list for (mailbox, query).
-        """
         criteria = query.build() or "ALL"
         cache_key = (mailbox, criteria)
 
         def _impl(conn: imaplib.IMAP4) -> List[int]:
             self._ensure_selected(conn, mailbox, readonly=True)
-
             typ, data = conn.uid("SEARCH", None, criteria)
             if typ != "OK":
                 raise IMAPError(f"SEARCH failed: {data}")
 
             raw = data[0] or b""
-            # SEARCH returns ascending UIDs (oldest -> newest)
-            uids_bytes = raw.split()
-            uids = [int(x) for x in uids_bytes]
+            uids = [int(x) for x in raw.split()]
 
-            # Store in cache while holding the lock (run_with_conn already does)
             self._search_cache[cache_key] = uids
             return uids
 
-        return self._run_with_conn(_impl)
-    
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
+
     def search_page_cached(
         self,
         *,
@@ -246,10 +258,6 @@ class IMAPClient:
         after_uid: Optional[int] = None,
         refresh: bool = False,
     ) -> PagedSearchResult:
-        """
-        Cached, page-based paging over search results, newest-first.
-        """
-
         if before_uid is not None and after_uid is not None:
             raise ValueError("Cannot specify both before_uid and after_uid")
 
@@ -265,10 +273,9 @@ class IMAPClient:
         if not uids:
             return PagedSearchResult(refs=[], total=0, has_next=False, has_prev=False)
 
-        uids_sorted = uids  # ascending, older -> newer
+        uids_sorted = uids  # ascending old->new
         total_matches = len(uids_sorted)
 
-        # ---- Compute page slice [start:end) in ascending order ----
         if before_uid is not None:
             idx = bisect_left(uids_sorted, before_uid)
             end = idx
@@ -278,68 +285,104 @@ class IMAPClient:
             start = idx
             end = min(len(uids_sorted), start + page_size)
         else:
-            # No anchors: newest page (last page_size items).
             end = len(uids_sorted)
             start = max(0, end - page_size)
 
         if start >= end:
-            # Nothing in range; we still know total, but no next/prev.
-            return PagedSearchResult(
-                refs=[],
-                total=total_matches,
-                has_next=False,
-                has_prev=False,
-            )
+            return PagedSearchResult(refs=[], total=total_matches, has_next=False, has_prev=False)
 
-        # Contiguous slice in ascending order
         page_uids_asc = uids_sorted[start:end]
+        page_uids_desc = list(reversed(page_uids_asc))
 
-        # For display, return newest-first
-        page_uids = list(reversed(page_uids_asc))
+        refs = [EmailRef(uid=uid, mailbox=mailbox) for uid in page_uids_desc]
 
-        refs = [EmailRef(uid=uid, mailbox=mailbox) for uid in page_uids]
-
-        # Oldest/newest refer to UID age (ascending list)
         oldest_uid = page_uids_asc[0]
         newest_uid = page_uids_asc[-1]
 
-        has_older = (start > 0)
-        has_newer = (end < len(uids_sorted))
-
-        has_next = has_older
-        has_prev = has_newer
-
-        next_before_uid: Optional[int] = oldest_uid if has_older else None
-        prev_after_uid: Optional[int] = newest_uid if has_newer else None
+        has_older = start > 0
+        has_newer = end < len(uids_sorted)
 
         return PagedSearchResult(
             refs=refs,
-            next_before_uid=next_before_uid,
-            prev_after_uid=prev_after_uid,
+            next_before_uid=oldest_uid if has_older else None,
+            prev_after_uid=newest_uid if has_newer else None,
             newest_uid=newest_uid,
             oldest_uid=oldest_uid,
             total=total_matches,
-            has_next=has_next,
-            has_prev=has_prev,
+            has_next=has_older,
+            has_prev=has_newer,
         )
 
-    def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List["EmailRef"]:
+    def search(self, *, mailbox: str, query: IMAPQuery, limit: int = 50) -> List[EmailRef]:
         page = self.search_page_cached(
             mailbox=mailbox,
             query=query,
             page_size=limit,
-            before_uid=None,
-            after_uid=None,
-            refresh=True,  # force a fresh SEARCH, also populates cache
+            refresh=True,
         )
         return page.refs
-    
-    def fetch(self, refs: Sequence["EmailRef"], *, include_attachments: bool = False) -> List[EmailMessage]:
+
+    # -----------------------
+    # FETCH helpers
+    # -----------------------
+
+    def _fetch_section_mime_and_body(
+        self, conn: imaplib.IMAP4, *, uid: int, section: str
+    ) -> Tuple[Optional[bytes], Optional[bytes]]:
+        want = f"(UID BODY.PEEK[{section}.MIME] BODY.PEEK[{section}])"
+        typ, data = conn.uid("FETCH", str(uid), want)
+        if typ != "OK":
+            raise IMAPError(f"FETCH body section failed uid={uid}: {data}")
+
+        mime_bytes: Optional[bytes] = None
+        body_bytes: Optional[bytes] = None
+
+        j = 0
+        while j < len(data):
+            it = data[j]
+            if not isinstance(it, tuple) or not it:
+                j += 1
+                continue
+
+            meta_b = it[0]
+            if not isinstance(meta_b, (bytes, bytearray)):
+                j += 1
+                continue
+
+            meta_s = meta_b.decode(errors="ignore")
+            pay, used_n = _extract_payload_from_fetch_item(it, data, j)
+
+            if isinstance(pay, (bytes, bytearray)):
+                if MIME_TOKEN_RE.search(meta_s):
+                    mime_bytes = bytes(pay)
+                elif BODY_TOKEN_RE.search(meta_s) and not MIME_TOKEN_RE.search(meta_s):
+                    body_bytes = bytes(pay)
+
+            j += 2 if used_n else 1
+
+        return mime_bytes, body_bytes
+
+    def _decode_section(self, *, mime_bytes: Optional[bytes], body_bytes: Optional[bytes]) -> str:
+        if not body_bytes:
+            return ""
+        if not mime_bytes:
+            try:
+                return body_bytes.decode("utf-8", errors="replace")
+            except Exception:
+                return body_bytes.decode("latin-1", errors="replace")
+
+        msg = BytesParser(policy=default_policy).parsebytes(mime_bytes)
+        return decode_body_chunk(body_bytes, msg)
+
+    # -----------------------
+    # FETCH full message (headers + best text/html via BODYSTRUCTURE)
+    # -----------------------
+
+    def fetch(self, refs: Sequence[EmailRef], *, include_attachments: bool = False) -> List[EmailMessage]:
         if not refs:
             return []
 
         mailbox = self._assert_same_mailbox(refs, "fetch")
-
         required_uids = {r.uid for r in refs}
 
         def _impl(conn: imaplib.IMAP4) -> List[EmailMessage]:
@@ -347,13 +390,13 @@ class IMAPClient:
 
             uid_str = ",".join(str(r.uid) for r in refs)
             attrs = "(UID INTERNALDATE BODYSTRUCTURE BODY.PEEK[HEADER])"
-
             typ, data = conn.uid("FETCH", uid_str, attrs)
             if typ != "OK":
                 raise IMAPError(f"FETCH failed: {data}")
             if not data:
                 return []
-            
+
+            # Collect per-UID: headers bytes, internaldate str, bodystructure str
             partial: Dict[int, Dict[str, object]] = {}
             current_uid: Optional[int] = None
 
@@ -362,9 +405,8 @@ class IMAPClient:
             while i < n:
                 item = data[i]
 
-                # Closing markers like b')' – usually end of a message block
                 if isinstance(item, (bytes, bytearray)):
-                    if item.strip() == b')':
+                    if item.strip() == b")":
                         current_uid = None
                     i += 1
                     continue
@@ -387,7 +429,6 @@ class IMAPClient:
                     current_uid = uid if uid in required_uids else None
 
                 if current_uid is None:
-                    # Nothing to associate this chunk with
                     i += 2 if used_next else 1
                     continue
 
@@ -396,12 +437,10 @@ class IMAPClient:
                     {"headers": None, "internaldate": None, "bodystructure": None},
                 )
 
-                # INTERNALDATE (might appear on first tuple only)
                 m_internal = INTERNALDATE_RE.search(meta_str)
                 if m_internal:
                     bucket["internaldate"] = m_internal.group(1)
 
-                # HEADER payload
                 if HEADER_PEEK_RE.search(meta_str) and isinstance(payload, (bytes, bytearray)):
                     bucket["headers"] = bytes(payload)
 
@@ -410,7 +449,6 @@ class IMAPClient:
                     bucket["bodystructure"] = bs
 
                 i += 2 if used_next else 1
-
 
             out: List[EmailMessage] = []
             for r in refs:
@@ -424,7 +462,7 @@ class IMAPClient:
 
                 text = ""
                 html = ""
-                attachment_metas = []
+                attachment_metas: List[AttachmentMeta] = []
 
                 if isinstance(bs_raw, str) and bs_raw:
                     try:
@@ -435,81 +473,37 @@ class IMAPClient:
                         if include_attachments:
                             attachment_metas = atts
 
-                        # Fetch and decode plain/html parts without downloading attachments
-                        def fetch_section(section: str) -> Tuple[Optional[bytes], Optional[bytes]]:
-                            # fetch both MIME headers and body for decoding
-                            want = f"(UID BODY.PEEK[{section}.MIME] BODY.PEEK[{section}])"
-                            typ2, data2 = conn.uid("FETCH", str(r.uid), want)
-                            if typ2 != "OK":
-                                raise IMAPError(f"FETCH body section failed uid={r.uid}: {data2}")
-
-                            mime_bytes: Optional[bytes] = None
-                            body_bytes: Optional[bytes] = None
-
-                            j = 0
-                            while j < len(data2):
-                                it = data2[j]
-                                if not isinstance(it, tuple) or not it:
-                                    j += 1
-                                    continue
-                                meta_b = it[0]
-                                if not isinstance(meta_b, (bytes, bytearray)):
-                                    j += 1
-                                    continue
-                                meta_s = meta_b.decode(errors="ignore")
-                                pay, used_n = _extract_payload_from_fetch_item(it, data2, j)
-
-                                if isinstance(pay, (bytes, bytearray)):
-                                    if MIME_TOKEN_RE.search(meta_s):
-                                        mime_bytes = bytes(pay)
-                                    elif BODY_TOKEN_RE.search(meta_s) and not MIME_TOKEN_RE.search(meta_s):
-                                        body_bytes = bytes(pay)
-
-                                j += 2 if used_n else 1
-
-                            return mime_bytes, body_bytes
-
                         if plain_ref is not None:
-                            mime_b, body_b = fetch_section(plain_ref.part)
-                            # decode using the MIME headers
-                            from email.parser import BytesParser
-                            msg = BytesParser(policy=default_policy).parsebytes(mime_b or b"")
-                            text = decode_body_chunk(body_b or b"", msg)
+                            mime_b, body_b = self._fetch_section_mime_and_body(conn, uid=r.uid, section=plain_ref.part)
+                            text = self._decode_section(mime_bytes=mime_b, body_bytes=body_b)
 
                         if html_ref is not None:
-                            mime_b, body_b = fetch_section(html_ref.part)
-                            from email.parser import BytesParser
-                            msg = BytesParser(policy=default_policy).parsebytes(mime_b or b"")
-                            html = decode_body_chunk(body_b or b"", msg)
+                            mime_b, body_b = self._fetch_section_mime_and_body(conn, uid=r.uid, section=html_ref.part)
+                            html = self._decode_section(mime_bytes=mime_b, body_bytes=body_b)
 
                     except Exception:
-                        # If BODYSTRUCTURE parsing fails, we still return headers-based fields
-                        # with empty bodies rather than downloading attachments as fallback.
+                        # Best-effort: headers still returned; bodies left empty.
                         pass
 
-                # 3) Build EmailMessage from headers + decoded bodies (no attachment bytes)
                 msg = parse_headers_and_bodies(
                     r,
                     header_bytes,
                     text=text,
                     html=html,
                     attachments=attachment_metas if include_attachments else [],
-                    internaldate_raw=internaldate_raw,
+                    internaldate_raw=internaldate_raw if isinstance(internaldate_raw, str) else None,
                 )
                 out.append(msg)
 
             return out
 
-        return self._run_with_conn(_impl)
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
 
-    def fetch_overview(
-        self,
-        refs: Sequence["EmailRef"],
-    ) -> List[EmailOverview]:
-        """
-        Lightweight fetch: only FLAGS, selected headers (From, To, Subject, Date, Message-ID),
-        and a small text preview from the body.
-        """
+    # -----------------------
+    # FETCH overview
+    # -----------------------
+
+    def fetch_overview(self, refs: Sequence[EmailRef]) -> List[EmailOverview]:
         if not refs:
             return []
         mailbox = self._assert_same_mailbox(refs, "fetch_overview")
@@ -518,9 +512,8 @@ class IMAPClient:
             self._ensure_selected(conn, mailbox, readonly=True)
 
             uid_str = ",".join(str(r.uid) for r in refs)
-            # FLAGS + headers + partial text body
             attrs = (
-                f"(UID FLAGS INTERNALDATE "
+                "(UID FLAGS INTERNALDATE "
                 "BODY.PEEK[HEADER.FIELDS (From To Subject Date Message-ID Content-Type Content-Transfer-Encoding)])"
             )
             typ, data = conn.uid("FETCH", uid_str, attrs)
@@ -528,18 +521,17 @@ class IMAPClient:
                 raise IMAPError(f"FETCH overview failed: {data}")
             if not data:
                 return []
-            # Collect partial data per UID
+
             partial: Dict[int, Dict[str, object]] = {}
             current_uid: Optional[int] = None
             i = 0
             n = len(data)
+
             while i < n:
                 item = data[i]
 
-                # Closing marker like b')' – end of current message
                 if isinstance(item, (bytes, bytearray)):
-                    # defensive: reset current_uid on “)” or similar terminators
-                    if item.strip() == b')':
+                    if item.strip() == b")":
                         current_uid = None
                     i += 1
                     continue
@@ -566,33 +558,24 @@ class IMAPClient:
 
                 bucket = partial.setdefault(
                     current_uid,
-                    {
-                        "flags": set(),
-                        "headers": None,
-                        "internaldate": None,
-                    },
+                    {"flags": set(), "headers": None, "internaldate": None},
                 )
 
-                # FLAGS (only present on the first tuple for the message)
                 m_flags = FLAGS_RE.search(meta)
                 if m_flags:
                     flags_str = m_flags.group(1).strip()
-                    if flags_str:
-                        bucket["flags"] = {f for f in flags_str.split() if f}
+                    bucket["flags"] = {f for f in flags_str.split() if f} if flags_str else set()
 
-                # INTERNALDATE
                 m_internal = INTERNALDATE_RE.search(meta)
                 if m_internal:
                     bucket["internaldate"] = m_internal.group(1)
 
-                # Headers (might be in a tuple with no UID, as in your sample)
-                if HEADER_TOKEN_RE.search(meta) and isinstance(payload, (bytes, bytearray)):
-                    bucket["headers"] = payload
-
+                # payload holds the header fields
+                if isinstance(payload, (bytes, bytearray)):
+                    bucket["headers"] = bytes(payload)
 
                 i += 1
 
-            # Build EmailOverview objects in the same order as refs
             overviews: List[EmailOverview] = []
             for r in refs:
                 info = partial.get(r.uid)
@@ -600,7 +583,7 @@ class IMAPClient:
                     continue
 
                 flags = set(info["flags"]) if isinstance(info["flags"], set) else set()
-                header_bytes = info["headers"]
+                header_bytes = info.get("headers") or b""
                 internaldate_raw = info.get("internaldate")
 
                 overviews.append(
@@ -608,15 +591,19 @@ class IMAPClient:
                         r,
                         flags,
                         header_bytes,
-                        internaldate_raw=internaldate_raw,
+                        internaldate_raw=internaldate_raw if isinstance(internaldate_raw, str) else None,
                     )
                 )
 
             return overviews
 
-        return self._run_with_conn(_impl)
-    
-    def fetch_attachment(self, ref: "EmailRef", attachment_part: str) -> bytes:
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
+
+    # -----------------------
+    # Attachment fetch
+    # -----------------------
+
+    def fetch_attachment(self, ref: EmailRef, attachment_part: str) -> bytes:
         mailbox = ref.mailbox
         uid = ref.uid
         part = attachment_part
@@ -624,7 +611,6 @@ class IMAPClient:
         def _impl(conn: imaplib.IMAP4) -> bytes:
             self._ensure_selected(conn, mailbox, readonly=True)
 
-            # 1) fetch MIME headers for this part (to get transfer encoding)
             typ, mime_data = conn.uid("FETCH", str(uid), f"(UID BODY.PEEK[{part}.MIME])")
             if typ != "OK" or not mime_data:
                 raise IMAPError(f"FETCH attachment MIME failed uid={uid} part={part}: {mime_data}")
@@ -635,13 +621,11 @@ class IMAPClient:
                     mime_bytes = bytes(item[1])
                     break
 
-            # Parse MIME headers (safe even if partial)
             cte = None
             if mime_bytes:
                 msg = BytesParser(policy=default_policy).parsebytes(mime_bytes)
                 cte = msg.get("Content-Transfer-Encoding")
 
-            # 2) fetch the actual body part payload
             typ, body_data = conn.uid("FETCH", str(uid), f"(UID BODY.PEEK[{part}])")
             if typ != "OK" or not body_data:
                 raise IMAPError(f"FETCH attachment failed uid={uid} part={part}: {body_data}")
@@ -655,12 +639,14 @@ class IMAPClient:
             if payload is None:
                 raise IMAPError(f"Attachment payload not found uid={uid} part={part}")
 
-            # 3) decode based on Content-Transfer-Encoding
             return decode_transfer(payload, cte)
 
-        return self._run_with_conn(_impl)
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
 
-    
+    # -----------------------
+    # Mutations
+    # -----------------------
+
     def append(
         self,
         mailbox: str,
@@ -668,29 +654,21 @@ class IMAPClient:
         *,
         flags: Optional[Set[str]] = None,
     ) -> EmailRef:
-        """
-        Append a message to `mailbox` and return an EmailRef.
-        """
         def _impl(conn: imaplib.IMAP4) -> EmailRef:
             self._ensure_selected(conn, mailbox, readonly=False)
 
-            flags_arg = None
-            if flags:
-                flags_arg = "(" + " ".join(sorted(flags)) + ")"
-
+            flags_arg = "(" + " ".join(sorted(flags)) + ")" if flags else None
             date_time = imaplib.Time2Internaldate(time.time())
             raw_bytes = msg.as_bytes()
             imap_mailbox = self._format_mailbox_arg(mailbox)
+
             typ, data = conn.append(imap_mailbox, flags_arg, date_time, raw_bytes)
             if typ != "OK":
                 raise IMAPError(f"APPEND to {mailbox!r} failed: {data}")
 
             uid: Optional[int] = None
             if data and data[0]:
-                if isinstance(data[0], bytes):
-                    resp = data[0].decode(errors="ignore")
-                else:
-                    resp = str(data[0])
+                resp = data[0].decode(errors="ignore") if isinstance(data[0], bytes) else str(data[0])
                 m = re.search(r"APPENDUID\s+\d+\s+(\d+)", resp)
                 if m:
                     uid = int(m.group(1))
@@ -698,28 +676,25 @@ class IMAPClient:
             if uid is None:
                 typ_search, data_search = conn.uid("SEARCH", None, "ALL")
                 if typ_search == "OK" and data_search and data_search[0]:
-                    all_uids = [
-                        int(x)
-                        for x in data_search[0].split()
-                        if x.strip()
-                    ]
-                    if all_uids:
-                        uid = max(all_uids)
+                    all_uids = [int(x) for x in data_search[0].split() if x.strip()]
+                    uid = max(all_uids) if all_uids else None
 
             if uid is None:
                 raise IMAPError("APPEND succeeded but could not determine UID")
 
             return EmailRef(uid=uid, mailbox=mailbox)
 
-        return self._run_with_conn(_impl)
+        ref = self._run_with_conn(_impl)  # type: ignore[assignment]
+        self._invalidate_search_cache(mailbox)
+        return ref  # type: ignore[return-value]
 
-    def add_flags(self, refs: Sequence["EmailRef"], *, flags: Set[str]) -> None:
+    def add_flags(self, refs: Sequence[EmailRef], *, flags: Set[str]) -> None:
         self._store(refs, mode="+FLAGS", flags=flags)
 
-    def remove_flags(self, refs: Sequence["EmailRef"], *, flags: Set[str]) -> None:
+    def remove_flags(self, refs: Sequence[EmailRef], *, flags: Set[str]) -> None:
         self._store(refs, mode="-FLAGS", flags=flags)
 
-    def _store(self, refs: Sequence["EmailRef"], *, mode: str, flags: Set[str]) -> None:
+    def _store(self, refs: Sequence[EmailRef], *, mode: str, flags: Set[str]) -> None:
         if not refs:
             return
         mailbox = self._assert_same_mailbox(refs, "_store")
@@ -733,38 +708,34 @@ class IMAPClient:
                 raise IMAPError(f"STORE failed: {data}")
 
         self._run_with_conn(_impl)
+        # flags can change search results depending on query criteria
+        self._invalidate_search_cache(mailbox)
 
     def expunge(self, mailbox: str = "INBOX") -> None:
-        """
-        Permanently remove messages flagged as \\Deleted in the given mailbox.
-        """
         def _impl(conn: imaplib.IMAP4) -> None:
             self._ensure_selected(conn, mailbox, readonly=False)
-
             typ, data = conn.expunge()
             if typ != "OK":
                 raise IMAPError(f"EXPUNGE failed: {data}")
 
         self._run_with_conn(_impl)
+        self._invalidate_search_cache(mailbox)
+
+    # -----------------------
+    # Mailboxes
+    # -----------------------
 
     def list_mailboxes(self) -> List[str]:
-        """
-        Return a list of *selectable* mailbox names (skip \\Noselect).
-        """
         def _impl(conn: imaplib.IMAP4) -> List[str]:
             typ, data = conn.list()
             if typ != "OK":
                 raise IMAPError(f"LIST failed: {data}")
 
             mailboxes: List[str] = []
-            if not data:
-                return mailboxes
-
-            for raw in data:
+            for raw in data or []:
                 if not raw:
                     continue
 
-                # Skip non-selectable mailboxes advertised with \Noselect
                 flags = self._parse_list_flags(raw)
                 if r"\NOSELECT" in flags:
                     continue
@@ -775,29 +746,19 @@ class IMAPClient:
 
             return mailboxes
 
-        return self._run_with_conn(_impl)
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
 
     def mailbox_status(self, mailbox: str = "INBOX") -> Dict[str, int]:
-        """
-        Return basic status counters for a mailbox, e.g.:
-            {"messages": 1234, "unseen": 12}
-        """
         def _impl(conn: imaplib.IMAP4) -> Dict[str, int]:
             imap_mailbox = self._format_mailbox_arg(mailbox)
             typ, data = conn.status(imap_mailbox, "(MESSAGES UNSEEN)")
             if typ != "OK":
                 raise IMAPError(f"STATUS {mailbox!r} failed: {data}")
-
             if not data or not data[0]:
                 raise IMAPError(f"STATUS {mailbox!r} returned empty data")
 
-            # Example: b'INBOX (MESSAGES 42 UNSEEN 3)'
-            if isinstance(data[0], bytes):
-                s = data[0].decode(errors="ignore")
-            else:
-                s = str(data[0])
+            s = data[0].decode(errors="ignore") if isinstance(data[0], bytes) else str(data[0])
 
-            # Extract the parenthesized part
             start = s.find("(")
             end = s.rfind(")")
             if start == -1 or end == -1 or end <= start:
@@ -807,12 +768,10 @@ class IMAPClient:
             tokens = payload.split()
             status: Dict[str, int] = {}
 
-            # tokens like ["MESSAGES", "42", "UNSEEN", "3"]
             for i in range(0, len(tokens) - 1, 2):
                 key = tokens[i].upper()
-                val_str = tokens[i + 1]
                 try:
-                    val = int(val_str)
+                    val = int(tokens[i + 1])
                 except ValueError:
                     continue
 
@@ -825,18 +784,11 @@ class IMAPClient:
 
             return status
 
-        return self._run_with_conn(_impl)
+        return self._run_with_conn(_impl)  # type: ignore[return-value]
 
-    def move(
-        self,
-        refs: Sequence["EmailRef"],
-        *,
-        src_mailbox: str,
-        dst_mailbox: str,
-    ) -> None:
+    def move(self, refs: Sequence[EmailRef], *, src_mailbox: str, dst_mailbox: str) -> None:
         if not refs:
             return
-
         for r in refs:
             if r.mailbox != src_mailbox:
                 raise IMAPError("All EmailRef.mailbox must match src_mailbox for move()")
@@ -864,17 +816,12 @@ class IMAPClient:
                 raise IMAPError(f"EXPUNGE (after MOVE fallback) failed: {data_expunge}")
 
         self._run_with_conn(_impl)
+        self._invalidate_search_cache(src_mailbox)
+        self._invalidate_search_cache(dst_mailbox)
 
-    def copy(
-        self,
-        refs: Sequence["EmailRef"],
-        *,
-        src_mailbox: str,
-        dst_mailbox: str,
-    ) -> None:
+    def copy(self, refs: Sequence[EmailRef], *, src_mailbox: str, dst_mailbox: str) -> None:
         if not refs:
             return
-
         for r in refs:
             if r.mailbox != src_mailbox:
                 raise IMAPError("All EmailRef.mailbox must match src_mailbox for copy()")
@@ -889,6 +836,7 @@ class IMAPClient:
                 raise IMAPError(f"COPY failed: {data}")
 
         self._run_with_conn(_impl)
+        self._invalidate_search_cache(dst_mailbox)
 
     def create_mailbox(self, name: str) -> None:
         def _impl(conn: imaplib.IMAP4) -> None:
@@ -898,6 +846,7 @@ class IMAPClient:
                 raise IMAPError(f"CREATE {name!r} failed: {data}")
 
         self._run_with_conn(_impl)
+        self._invalidate_search_cache()
 
     def delete_mailbox(self, name: str) -> None:
         def _impl(conn: imaplib.IMAP4) -> None:
@@ -907,11 +856,9 @@ class IMAPClient:
                 raise IMAPError(f"DELETE {name!r} failed: {data}")
 
         self._run_with_conn(_impl)
+        self._invalidate_search_cache()
 
     def ping(self) -> None:
-        """
-        Minimal IMAP health check.
-        """
         def _impl(conn: imaplib.IMAP4) -> None:
             typ, data = conn.noop()
             if typ != "OK":
@@ -924,7 +871,6 @@ class IMAPClient:
             self._reset_conn()
 
     def __enter__(self) -> "IMAPClient":
-        # lazy connect;
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
