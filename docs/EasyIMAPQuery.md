@@ -1,6 +1,6 @@
-# EasyIMAPQuery
+# EmailQuery
 
-`EasyIMAPQuery` is a fluent IMAP query builder that lets you **compose filters in Python** without dealing directly with IMAP syntax.  
+`EmailQuery` is a fluent IMAP query builder that lets you **compose filters in Python** without dealing directly with IMAP syntax.  
 It integrates tightly with `EmailManager` and only executes the IMAP operation when you call `.search()` or `.fetch()`.
 
 ---
@@ -14,13 +14,13 @@ Raw IMAP queries are difficult to build, especially when combining:
 - multi-field matching
 - thread or participant filtering
 
-`EasyIMAPQuery` provides a clean Python interface and returns standard `EmailMessage` objects when executed.
+`EmailQuery` provides a clean Python interface and returns standard `EmailMessage` objects when executed.
 
 ---
 
 ## Construction
 
-You typically obtain an `EasyIMAPQuery` from `EmailManager`:
+You typically obtain an `EmailQuery` from `EmailManager`:
 
 ```
 q = mgr.imap_query(mailbox="INBOX")
@@ -36,7 +36,7 @@ q = mgr.imap_query()
 
 ## Execution Model
 
-`EasyIMAPQuery` is “lazy” — meaning:
+`EmailQuery` is “lazy” — meaning:
 
 - Calling `.from_any(...)`, `.recent_unread(...)`, etc. **does not hit the server**
 - Only `.search()` or `.fetch()` triggers IMAP operations
@@ -181,7 +181,7 @@ Use `include_attachments=True` for attachment access, at a performance cost.
 
 ## Natural Language Entry Point
 
-`EasyIMAPQuery` also integrates with `EmailAssistant` for natural-language IMAP construction:
+`EmailQuery` also integrates with `EmailAssistant` for natural-language IMAP construction:
 
 ```
 query, info = assistant.search_emails(

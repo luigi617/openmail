@@ -6,7 +6,7 @@ It wraps:
 
 - `SMTPClient` (sending mail)
 - `IMAPClient` (reading/searching mail)
-- `EasyIMAPQuery` (fluent IMAP query builder)
+- `EmailQuery` (fluent IMAP query builder)
 
 ---
 
@@ -197,9 +197,9 @@ If the `root` has no `message_id`, this simply returns `[root]`.
 
 ---
 
-## EasyIMAPQuery Integration
+## EmailQuery Integration
 
-Use `imap_query()` to build a fluent filter via `EasyIMAPQuery`:
+Use `imap_query()` to build a fluent filter via `EmailQuery`:
 
 ```
 q = (
@@ -211,7 +211,7 @@ q = (
 msgs = q.fetch(include_attachments=False)
 ```
 
-See [`docs/EasyIMAPQuery.md`](./EasyIMAPQuery.md) for all query helpers.
+See [`docs/EmailQuery.md`](./EmailQuery.md) for all query helpers.
 
 ---
 

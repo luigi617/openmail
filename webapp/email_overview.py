@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import time
 from typing import Dict, List, Optional, Tuple, Callable, Any
 
-from email_management import EmailManager, EmailAssistant, EasyIMAPQuery
+from email_management import EmailManager, EmailAssistant, EmailQuery
 from email_management.imap import IMAPQuery
 from email_management.models import EmailOverview
 from utils import encode_cursor, decode_cursor
@@ -21,7 +21,7 @@ class _CachedDerivedQuery:
 class _DerivedIMAPQueryCache:
     """
     In-memory cache:
-      (mailbox, normalized_user_query) -> snapshot of EasyIMAPQuery.query
+      (mailbox, normalized_user_query) -> snapshot of EmailQuery.query
     """
     def __init__(self, *, maxsize: int = 256, ttl_seconds: int = 3600) -> None:
         self.maxsize = maxsize
@@ -81,10 +81,10 @@ class _DerivedIMAPQueryCache:
 _DERIVED_QUERY_CACHE = _DerivedIMAPQueryCache(maxsize=256, ttl_seconds=3600)
 
 
-def _apply_cached_query(base_q: EasyIMAPQuery, cached: _CachedDerivedQuery) -> None:
+def _apply_cached_query(base_q: EmailQuery, cached: _CachedDerivedQuery) -> None:
     """
-    Apply the cached IMAP criteria onto a new EasyIMAPQuery instance.
-    Assumes EasyIMAPQuery has a `.query` object we can replace.
+    Apply the cached IMAP criteria onto a new EmailQuery instance.
+    Assumes EmailQuery has a `.query` object we can replace.
     """
     # Deepcopy to avoid cross-request mutation
     base_q.query = copy.deepcopy(cached.query_snapshot)

@@ -7,7 +7,7 @@ from email_management.utils import iso_days_ago
 if TYPE_CHECKING:
     from email_management.email_manager import EmailManager
 
-class EasyIMAPQuery:
+class EmailQuery:
     """
     Builder that composes filters and only hits IMAP when you call .search() or .fetch().
     """
@@ -18,11 +18,11 @@ class EasyIMAPQuery:
         self._q = IMAPQuery()
         self._limit: int = 50
 
-    def mailbox(self, mailbox: str) -> EasyIMAPQuery:
+    def mailbox(self, mailbox: str) -> EmailQuery:
         self._mailbox = mailbox
         return self
 
-    def limit(self, n: int) -> EasyIMAPQuery:
+    def limit(self, n: int) -> EmailQuery:
         self._limit = n
         return self
 
@@ -32,10 +32,10 @@ class EasyIMAPQuery:
         The underlying IMAPQuery.
 
         This is a LIVE object:
-        mutating it will affect this EasyIMAPQuery.
+        mutating it will affect this EmailQuery.
 
         Example:
-            easy = EasyIMAPQuery(mgr)
+            easy = EmailQuery(mgr)
 
             # mutate existing IMAPQuery
             easy.query.unseen().from_("alerts@example.com")
@@ -58,14 +58,14 @@ class EasyIMAPQuery:
             raise TypeError("query must be an IMAPQuery")
         self._q = value
 
-    def last_days(self, days: int) -> EasyIMAPQuery:
+    def last_days(self, days: int) -> EmailQuery:
         """Convenience: messages since N days ago (UTC)."""
         if days < 0:
             raise ValueError("days must be >= 0")
         self._q.since(iso_days_ago(days))
         return self
 
-    def from_any(self, *senders: str) -> EasyIMAPQuery:
+    def from_any(self, *senders: str) -> EmailQuery:
         """
         FROM any of the senders (nested OR). Equivalent to:
             OR FROM a OR FROM b FROM c ...
@@ -79,7 +79,7 @@ class EasyIMAPQuery:
         self._q.or_(*qs)
         return self
 
-    def to_any(self, *recipients: str) -> EasyIMAPQuery:
+    def to_any(self, *recipients: str) -> EmailQuery:
         qs = [IMAPQuery().to(s) for s in recipients if s]
         if len(qs) == 0:
             return self
@@ -89,7 +89,7 @@ class EasyIMAPQuery:
         self._q.or_(*qs)
         return self
 
-    def subject_any(self, *needles: str) -> EasyIMAPQuery:
+    def subject_any(self, *needles: str) -> EmailQuery:
         qs = [IMAPQuery().subject(s) for s in needles if s]
         if len(qs) == 0:
             return self
@@ -99,7 +99,7 @@ class EasyIMAPQuery:
         self._q.or_(*qs)
         return self
 
-    def text_any(self, *needles: str) -> EasyIMAPQuery:
+    def text_any(self, *needles: str) -> EmailQuery:
         qs = [IMAPQuery().text(s) for s in needles if s]
         if len(qs) == 0:
             return self
@@ -109,12 +109,12 @@ class EasyIMAPQuery:
         self._q.or_(*qs)
         return self
 
-    def recent_unread(self, days: int = 7) -> EasyIMAPQuery:
+    def recent_unread(self, days: int = 7) -> EmailQuery:
         """UNSEEN AND SINCE (days ago)."""
         self._q.unseen()
         return self.last_days(days)
 
-    def inbox_triage(self, days: int = 14) -> EasyIMAPQuery:
+    def inbox_triage(self, days: int = 14) -> EmailQuery:
         """
         A very common triage filter:
         - not deleted
@@ -131,12 +131,12 @@ class EasyIMAPQuery:
         self._q.raw(triage_or.build())
         return self
 
-    def header_contains(self, name: str, needle: str) -> EasyIMAPQuery:
+    def header_contains(self, name: str, needle: str) -> EmailQuery:
         if name and needle:
             self._q.header(name, needle)
         return self
     
-    def for_thread_root(self, root: EmailMessage) -> "EasyIMAPQuery":
+    def for_thread_root(self, root: EmailMessage) -> "EmailQuery":
         """
         Narrow this query to messages that look like they belong to the same
         thread as `root`, based on its Message-ID.
@@ -152,7 +152,7 @@ class EasyIMAPQuery:
         )
         return self
     
-    def thread_like(self, *, subject: Optional[str] = None, participants: Sequence[str] = ()) -> EasyIMAPQuery:
+    def thread_like(self, *, subject: Optional[str] = None, participants: Sequence[str] = ()) -> EmailQuery:
         """
         Approximate "thread" matching:
         - optional SUBJECT contains `subject`
@@ -172,7 +172,7 @@ class EasyIMAPQuery:
         self._q.or_(*(q_from + q_to + q_cc))
         return self
 
-    def newsletters(self) -> EasyIMAPQuery:
+    def newsletters(self) -> EmailQuery:
         """
         Common newsletter identification:
         - has List-Unsubscribe header
@@ -180,7 +180,7 @@ class EasyIMAPQuery:
         self._q.header("List-Unsubscribe", "")
         return self
 
-    def from_domain(self, domain: str) -> EasyIMAPQuery:
+    def from_domain(self, domain: str) -> EmailQuery:
         """
         Practical: FROM contains '@domain'.
         (IMAP has no dedicated "domain" operator.)
@@ -191,11 +191,11 @@ class EasyIMAPQuery:
         self._q.from_(needle)
         return self
 
-    def invoices_or_receipts(self) -> EasyIMAPQuery:
+    def invoices_or_receipts(self) -> EmailQuery:
         """Common finance mailbox query."""
         return self.subject_any("invoice", "receipt", "payment", "order confirmation")
 
-    def security_alerts(self) -> EasyIMAPQuery:
+    def security_alerts(self) -> EmailQuery:
         """Common security / auth notifications."""
         return self.subject_any(
             "security alert",
@@ -207,7 +207,7 @@ class EasyIMAPQuery:
             "2fa",
         )
 
-    def with_attachments_hint(self) -> EasyIMAPQuery:
+    def with_attachments_hint(self) -> EmailQuery:
         """
         IMAP SEARCH cannot reliably filter 'has attachment' across servers.
         """
@@ -220,7 +220,7 @@ class EasyIMAPQuery:
         self._q.raw(hint.build())
         return self
 
-    def raw(self, *tokens: str) -> EasyIMAPQuery:
+    def raw(self, *tokens: str) -> EmailQuery:
         self._q.raw(*tokens)
         return self
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage as PyEmailMessage
 from typing import Dict, List, Optional, Sequence, Set
 
-from .email_query import EasyIMAPQuery
+from .email_query import EmailQuery
 from email_management.models import (UnsubscribeCandidate,
                                      EmailMessage,
                                      EmailOverview,
@@ -493,8 +493,8 @@ class EmailManager:
 
         return self.send(msg)
     
-    def imap_query(self, mailbox: str = "INBOX") -> EasyIMAPQuery:
-        return EasyIMAPQuery(self, mailbox=mailbox)
+    def imap_query(self, mailbox: str = "INBOX") -> EmailQuery:
+        return EmailQuery(self, mailbox=mailbox)
 
     def fetch_overview(
         self,
@@ -596,7 +596,7 @@ class EmailManager:
     def mark_all_seen(self, mailbox: str = "INBOX", *, chunk_size: int = 500) -> int:
         total = 0
 
-        # Build a reusable EasyIMAPQuery for UNSEEN messages in this mailbox
+        # Build a reusable EmailQuery for UNSEEN messages in this mailbox
         q = self.imap_query(mailbox).limit(chunk_size)
         q.query.unseen()
 

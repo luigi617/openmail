@@ -22,7 +22,7 @@ from email_management.assistants import (
     llm_summarize_attachments_for_email,
 )
 from email_management.email_manager import EmailManager
-from email_management.email_query import EasyIMAPQuery
+from email_management.email_query import EmailQuery
 from email_management.models import EmailMessage, Task
 
 @dataclass
@@ -166,11 +166,11 @@ class EmailAssistant:
         provider: str,
         model_name: str,
         mailbox: str = "INBOX",
-    ) -> Tuple[EasyIMAPQuery, Dict[str, Any]]:
+    ) -> Tuple[EmailQuery, Dict[str, Any]]:
         """
         Turn a natural-language request like:
             "find unread security alerts from Google last week"
-        into an EasyIMAPQuery + llm_call_info.
+        into an EmailQuery + llm_call_info.
         """
         return llm_easy_imap_query_from_nl(
             user_request,
