@@ -51,6 +51,29 @@ function guessDraftsMailbox(mailboxes?: string[]): string | undefined {
   return contains?.m;
 }
 
+// make sure that to, cc, bcc is considered in hasContentNow
+function getAddressDraft(fieldId: string): string {
+  const el = document.getElementById(fieldId) as HTMLInputElement | null;
+  return (el?.value || "").trim();
+}
+
+function mergeUniqueCaseInsensitive(a: string[], b: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const item of [...a, ...b]) {
+    const v = (item || "").trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+
+  return out;
+}
+
+
 export function useComposer(args: {
   mailboxData: MailboxData; // account -> mailboxes
   selectedOverview: EmailOverview | null;
@@ -79,12 +102,20 @@ export function useComposer(args: {
 
   const accounts = useMemo(() => Object.keys(args.mailboxData || {}), [args.mailboxData]);
 
-  const hasContent = useMemo(() => {
+  const hasContentNow = useCallback(() => {
     const bodyText = stripHtmlToText(state.html || "");
+
+    const toDraft = getAddressDraft("composer-to");
+    const ccDraft = getAddressDraft("composer-cc");
+    const bccDraft = getAddressDraft("composer-bcc");
+    
     return (
       state.to.length > 0 ||
       state.cc.length > 0 ||
       state.bcc.length > 0 ||
+      toDraft.length > 0 ||
+      ccDraft.length > 0 ||
+      bccDraft.length > 0 ||
       state.subject.trim().length > 0 ||
       state.replyToRaw.trim().length > 0 ||
       bodyText.length > 0 ||
@@ -119,7 +150,7 @@ export function useComposer(args: {
   const requestClose = useCallback(() => {
     if (!state.open) return;
 
-    if (!hasContent) {
+    if (!hasContentNow()) {
       reset();
       close();
       return;
@@ -128,7 +159,6 @@ export function useComposer(args: {
     args.showCloseConfirm({
       onSaveDraft: async () => {
         const ok = await saveDraft();
-        console.log(ok);
         
         if (ok) {
           reset();
@@ -140,7 +170,7 @@ export function useComposer(args: {
         close();
       },
     });
-  }, [state.open, hasContent, args, reset, close]);
+  }, [state.open, state.to, hasContentNow, args, reset, close]);
 
   const toggleExtraField = useCallback((k: ComposerExtraFieldKey) => {
     setState((s) => ({ ...s, extra: { ...s.extra, [k]: !s.extra[k] } }));
@@ -368,10 +398,16 @@ export function useComposer(args: {
       return false;
     }
 
+    const toDraft = splitRawList(getAddressDraft("composer-to"));
+    const ccDraft = splitRawList(getAddressDraft("composer-cc"));
+    const bccDraft = splitRawList(getAddressDraft("composer-bcc"));
+
     const subject = state.subject;
-    const toList = state.to;
-    const ccList = state.cc;
-    const bccList = state.bcc;
+
+    const toList = mergeUniqueCaseInsensitive(state.to, toDraft);
+    
+    const ccList = mergeUniqueCaseInsensitive(state.cc, ccDraft);
+    const bccList = mergeUniqueCaseInsensitive(state.bcc, bccDraft);
 
     const replyToList = splitRawList(state.replyToRaw);
     const priority = state.priority;
