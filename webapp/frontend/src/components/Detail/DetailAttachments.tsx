@@ -7,7 +7,7 @@ export type DetailAttachmentsProps = {
   // Needed to build the EmailRef link
   account: string;
   mailbox: string;
-  email_id: number; // uid
+  email_id: number;
 };
 
 function formatBytes(bytes: number): string {

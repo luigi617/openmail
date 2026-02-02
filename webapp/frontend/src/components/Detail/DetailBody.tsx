@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import DOMPurify from "dompurify";
+import type { Attachment } from "../../types/email";
+import DetailAttachments from "./DetailAttachments";
 
 function htmlToText(html: string) {
   const div = document.createElement("div");
@@ -9,8 +11,12 @@ function htmlToText(html: string) {
 }
 
 export type DetailBodyProps = {
+  account: string;
+  mailbox: string;
+  email_id: number;
   html?: string | null;
   text?: string | null;
+  attachments?: Attachment[];
 };
 
 function sanitizeEmailHtml(html: string) {
@@ -45,29 +51,49 @@ function sanitizeEmailHtml(html: string) {
 }
 
 function buildSrcDoc(safeBodyHtml: string) {
-  // No scripts. Keep styling inside iframe only.
-  // "base target=_blank" ensures links don't navigate inside the iframe.
-  // (Also add rel protections in-case some clients rely on it.)
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="referrer" content="no-referrer" />
   <base target="_blank" />
+
+  <!-- Force light theme only -->
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+
   <style>
-    html, body { margin: 0; padding: 0; }
+    :root {
+      color-scheme: light;
+
+      --email-text: #111827;
+      --email-muted: #6b7280;
+      --email-link: #0a84ff;
+
+      /* background stays transparent so your .detail-body shell shows */
+      --email-bg: transparent;
+    }
+
+    html, body { margin: 0; padding: 5px; overflow: hidden; }
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
       line-height: 1.35;
-      color: #111827;
-      background: transparent;
+      color: var(--email-text);
+      background: var(--email-bg);
       overflow-wrap: anywhere;
+      border-radius: 8px;
     }
+
     img { max-width: 100%; height: auto; }
     table { max-width: 100%; }
     pre { white-space: pre-wrap; }
-    a { color: inherit; }
+
+    a { color: var(--email-link); }
+    hr { border: none; border-top: 1px solid rgba(127,127,127,0.35); }
+
+    /* Some emails hardcode black text; this nudges toward inheriting */
+    #email-root { color: inherit; }
   </style>
 </head>
 <body>
@@ -88,14 +114,11 @@ function EmailIFrame({ html }: { html: string }) {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
-    // Resize iframe to content height.
-    // This requires SAME-ORIGIN access; srcDoc gives that.
     const onLoad = () => {
       try {
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        // Add rel to all links for safety (base already sets target=_blank).
         doc.querySelectorAll("a[href]").forEach((a) => {
           a.setAttribute("rel", "noopener noreferrer");
         });
@@ -112,11 +135,9 @@ function EmailIFrame({ html }: { html: string }) {
 
         resize();
 
-        // Observe changes (images loading, fonts, etc.)
         const ro = new ResizeObserver(() => resize());
         ro.observe(doc.documentElement);
 
-        // Also listen for late-loading images
         doc.querySelectorAll("img").forEach((img) => {
           img.addEventListener("load", resize);
           img.addEventListener("error", resize);
@@ -136,17 +157,16 @@ function EmailIFrame({ html }: { html: string }) {
     <iframe
       ref={iframeRef}
       title="Email content"
-      // Strictest: no scripts. allow-popups lets target=_blank work.
-      // allow-top-navigation is NOT granted, so links can't take over the tab.
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcDoc={srcDoc}
       style={{
         width: "100%",
         border: "0",
         display: "block",
         background: "transparent",
+        overflow: "hidden",
+        height: "0px",
       }}
-      // Optional: keep it out of tab order
       tabIndex={-1}
     />
   );
@@ -163,14 +183,36 @@ export default function DetailBody(props: DetailBodyProps) {
     return "";
   }, [text, hasHtml, html]);
 
+  const attachments = props.attachments ?? [];
+  const showAttachments = attachments.length > 0;
+
+  const AttachmentsInline = showAttachments ? (
+    <div className="detail-attachments-inline">
+      <DetailAttachments
+        attachments={attachments}
+        account={props.account}
+        email_id={props.email_id}
+        mailbox={props.mailbox}
+      />
+    </div>
+  ) : null;
+
   if (hasHtml) {
     return (
-      <div className="detail-body html">
-        <EmailIFrame html={html} />
+      <div className="detail-body-block">
+        <div className="detail-body html light-island">
+            <EmailIFrame html={html} />  
+        </div>
+        {AttachmentsInline}
       </div>
     );
   }
 
   const safeText = derivedText.trim().length ? derivedText : "";
-  return <pre className="detail-body text">{safeText}</pre>;
+  return (
+    <div className="detail-body-block">
+      <pre className="detail-body text">{safeText}</pre>
+      {AttachmentsInline}
+    </div>
+  );
 }

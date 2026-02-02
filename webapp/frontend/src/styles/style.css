@@ -4,28 +4,167 @@
   box-sizing: border-box;
 }
 
-/* --- Colors tuned to macOS Mail look --- */
+/* =========================================================
+   THEME TOKENS (Light default)
+   ========================================================= */
 :root {
+  /* window + columns */
   --bg: #d3d6db;             /* window background */
   --sidebar-bg-top: #f4f1ea;
   --sidebar-bg-bottom: #e4e5ea;
   --middle-bg: #f5f5f7;
   --detail-bg: #ffffff;
 
+  /* surfaces / states */
+  --surface: #ffffff;        /* raised panels (composer, modal, menus) */
+  --surface-2: #f5f5f7;      /* subtle section backgrounds */
+  --surface-3: #f9fafb;      /* header/input-like surfaces */
+  --hover: #e5e5ea;          /* hover fill */
+  --hover-2: rgba(255, 255, 255, 0.55); /* sidebar hover */
+
+  /* borders */
   --border-soft: #d1d5db;
   --divider: #c7c7cc;
+  --card-border: rgba(15, 23, 42, 0.06);
+
+  /* text */
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  /* accents */
+  --accent: #0a84ff;         /* macOS blue */
+  --accent-soft: #d6e6ff;
+
+  /* inputs */
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-bg-2: rgba(255, 255, 255, 0.8);
+  --input-border: #d1d5db;
+  --focus-ring: rgba(10, 132, 255, 0.3);
+
+  /* danger */
+  --danger: #dc2626;
+
+  /* misc */
+  --radius-lg: 12px;
+  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.08);
+
+  /* scrollbars */
+  --scrollbar-thumb: #d1d5db;
+
+  --neutral-dot: #9ca3af;
+
+  /* text on strong colors */
+  --text-on-accent: #ffffff;
+  --text-on-danger: #ffffff;
+
+  /* overlays */
+  --backdrop: rgba(15, 23, 42, 0.38);
+
+  /* misc accents */
+  --quote-bar: rgba(10, 132, 255, 0.45);
+  --focus-ring-strong: rgba(10, 132, 255, 0.28);
+
+  /* errors (if you want slightly different from --danger) */
+  --error-text: #b91c1c;
+}
+
+/* A local "light theme" scope using your existing tokens */
+.light-island {
+  color-scheme: light;
+
+  /* copy/paste your LIGHT :root tokens here (only the ones DetailBody uses) */
+  --detail-bg: #ffffff;
+
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-3: #f9fafb;
+
+  --divider: #c7c7cc;
+  --border-soft: #d1d5db;
+  --card-border: rgba(15, 23, 42, 0.06);
 
   --text-main: #111827;
   --text-muted: #6b7280;
 
-  --accent: #0a84ff;         /* macOS blue */
-  --accent-soft: #d6e6ff;
+  --accent: #0a84ff;
+  --focus-ring: rgba(10, 132, 255, 0.3);
+  --focus-ring-strong: rgba(10, 132, 255, 0.28);
 
-  --danger: #dc2626;
-  --radius-lg: 12px;
-  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-bg-2: rgba(255, 255, 255, 0.8);
+  --input-border: #d1d5db;
+
+  --scrollbar-thumb: #d1d5db;
 }
 
+
+/* =========================================================
+   SYSTEM DARK THEME (no user selection needed)
+   ========================================================= */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* window + columns */
+    --bg: #0b0f17;
+    --sidebar-bg-top: #141a26;
+    --sidebar-bg-bottom: #0f1420;
+    --middle-bg: #0b0f17;
+    --detail-bg: #0f1624;
+
+    /* surfaces / states */
+    --surface: #0f1624;
+    --surface-2: #0b1220;
+    --surface-3: rgba(255, 255, 255, 0.04);
+    --hover: rgba(255, 255, 255, 0.06);
+    --hover-2: rgba(255, 255, 255, 0.06);
+
+    /* borders */
+    --border-soft: #273247;
+    --divider: #273247;
+    --card-border: rgba(255, 255, 255, 0.06);
+
+    /* text */
+    --text-main: #e7eaf0;
+    --text-muted: #a8b0c0;
+
+    /* accents */
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.22);
+
+    /* inputs */
+    --input-bg: rgba(255, 255, 255, 0.06);
+    --input-bg-2: rgba(255, 255, 255, 0.05);
+    --input-border: #273247;
+    --focus-ring: rgba(10, 132, 255, 0.35);
+
+    /* danger */
+    --danger: #ef4444;
+
+    /* misc */
+    --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.45);
+
+    /* scrollbars */
+    --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+
+    --neutral-dot: rgba(255, 255, 255, 0.35);
+
+    --text-on-accent: #ffffff;
+    --text-on-danger: #ffffff;
+
+    /* darker, softer overlay in dark mode */
+    --backdrop: rgba(0, 0, 0, 0.55);
+
+    /* keep quote bar/focus ring in the same family */
+    --quote-bar: rgba(10, 132, 255, 0.45);
+    --focus-ring-strong: var(--focus-ring);
+
+    /* error text should *not* be a light-theme maroon */
+    --error-text: var(--danger);
+  }
+}
+
+/* =========================================================
+   BASE
+   ========================================================= */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -34,7 +173,6 @@ body {
 }
 
 /* --- Layout ------------------------------------------------------ */
-
 main.layout {
   height: 100vh;
   max-width: none;
@@ -74,7 +212,6 @@ main.layout {
 }
 
 /* --- Generic card shell (used outside main columns: composer etc.) --- */
-
 .icon-img {
   width: 16px;
   height: 16px;
@@ -86,16 +223,20 @@ main.layout {
   height: 18px;
 }
 
-/* small inline "x" icon inside pills can reuse .icon-img size if needed */
+.icon-img,
+.icon-btn svg,
+.composer-icon-btn svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
 
 /* --- Cards --- */
-
 .card {
   background: var(--detail-bg);
   border-radius: var(--radius-lg);
   padding: 0.9rem 1rem;
   box-shadow: var(--shadow-soft);
-  border: 1px solid rgba(15, 23, 42, 0.03);
+  border: 1px solid var(--card-border);
 }
 
 .card h2 {
@@ -106,7 +247,6 @@ main.layout {
 }
 
 /* --- Sidebar (mailbox column) ------------------------------------ */
-
 .sidebar {
   background: linear-gradient(to bottom, var(--sidebar-bg-top), var(--sidebar-bg-bottom));
   border-right: 1px solid var(--divider);
@@ -139,9 +279,9 @@ main.layout {
   align-items: center;
   gap: 0.35rem;
   padding: 0.15rem 0.25rem;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--input-bg);
   border-radius: 999px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--input-border);
 }
 
 /* Search input inside the pill */
@@ -153,6 +293,7 @@ main.layout {
   padding: 0.3rem 0.5rem;
   font: inherit;
   font-size: 0.8rem;
+  color: var(--text-main);
 }
 
 .search-input:focus {
@@ -169,16 +310,16 @@ main.layout {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 999px;
-  border: 1px solid #d2d5de;
-  background: rgba(255, 255, 255, 0.8);
-  color: #111827;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg-2);
+  color: var(--text-main);
   padding: 0;
   cursor: pointer;
   box-shadow: none;
 }
 
 .search-btn:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 .search-btn:active {
@@ -192,7 +333,6 @@ main.layout {
 }
 
 /* Base inputs ----------------------------------------------------- */
-
 input[type="text"],
 input[type="email"],
 select,
@@ -200,9 +340,10 @@ textarea {
   width: 100%;
   padding: 0.4rem 0.55rem;
   border-radius: 6px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--input-border);
   font: inherit;
-  background: #f9fafb;
+  background: var(--surface-3);
+  color: var(--text-main);
 }
 
 input:focus,
@@ -210,24 +351,23 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.3);
-  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--focus-ring);
+  background: var(--surface);
 }
 
 /* Buttons --------------------------------------------------------- */
-
 button.secondary {
   border-radius: 999px;
-  border: 1px solid #d2d5de;
-  background: rgba(255, 255, 255, 0.8);
-  color: #111827;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg-2);
+  color: var(--text-main);
   padding: 0.32rem 0.85rem;
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 button.secondary:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 button.primary {
@@ -241,11 +381,10 @@ button.primary {
 }
 
 button.primary:hover {
-  background: #0060df;
+  filter: brightness(0.92);
 }
 
 /* Mailbox list ---------------------------------------------------- */
-
 .mailbox-list {
   max-height: calc(100vh - 210px);
   overflow-y: auto;
@@ -277,7 +416,7 @@ button.primary:hover {
 }
 
 .mailbox-account:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--hover-2);
 }
 
 .mailbox-account-chev {
@@ -307,23 +446,23 @@ button.primary:hover {
   gap: 0.35rem;
   margin: 0.03rem 0;
   width: 100%;
-  color: #111827;
+  color: var(--text-main);
 }
 
 .mailbox-item:hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--hover-2);
 }
 
 .mailbox-item.active {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .mailbox-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: var(--neutral-dot);
 }
 
 .mailbox-item.active .mailbox-dot {
@@ -331,7 +470,6 @@ button.primary:hover {
 }
 
 /* Legend ---------------------------------------------------------- */
-
 .legend-box {
   position: relative;
   max-height: 260px;
@@ -363,18 +501,17 @@ button.primary:hover {
 
 /* highlight active legend account (matches state.filterAccounts) */
 .legend-item.active {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--hover-2);
 }
 
 .legend-color-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  border: 1px solid var(--border-soft);
 }
 
 /* --- Middle column (message list) -------------------------------- */
-
 .middle {
   display: flex;
   flex-direction: column;
@@ -385,7 +522,7 @@ button.primary:hover {
 .list-header {
   border-radius: 0;
   box-shadow: none;
-  background: #f9fafb;
+  background: var(--surface-3);
   border-bottom: 1px solid var(--divider);
   padding: 0.55rem 0.75rem;
 }
@@ -439,7 +576,7 @@ button.primary:hover {
   gap: 0.45rem;
   padding: 0.45rem 0.65rem;
   border-radius: 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-soft);
   margin: 0;
   cursor: pointer;
   background: transparent;
@@ -447,7 +584,7 @@ button.primary:hover {
 }
 
 .email-card:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 .email-card.selected {
@@ -456,7 +593,7 @@ button.primary:hover {
 
 .email-color-strip {
   border-radius: 999px;
-  background: #9ca3af;
+  background: var(--neutral-dot);
   align-self: stretch;
 }
 
@@ -477,7 +614,7 @@ button.primary:hover {
 .email-from {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-main);
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -504,7 +641,6 @@ button.primary:hover {
 }
 
 /* --- Right column (message detail) -------------------------------- */
-
 .detail {
   display: flex;
   flex-direction: column;
@@ -531,6 +667,39 @@ button.primary:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+
+.detail-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+
+  /* nice DM feel (optional) */
+  scroll-snap-type: y proximity;
+
+  /* spacing */
+  padding-top: 0.25rem;
+  padding-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.thread-email-card {
+  background: var(--surface-2);
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+
+  display: flex;
+  flex-direction: column;
+
+  /* key behavior */
+  min-height: auto;
+
+  /* optional: feel like paging between messages */
+  scroll-snap-align: start;
 }
 
 /* Toolbar mimicking macOS icon strip */
@@ -548,10 +717,11 @@ button.primary:hover {
   padding: 0.28rem 0.4rem;
   font-size: 0.9rem;
   cursor: pointer;
+  color: var(--text-main);
 }
 
 .icon-btn:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 .toolbar-separator {
@@ -572,9 +742,10 @@ button.primary:hover {
   gap: 0.5rem;
   margin-bottom: 0.6rem;
   padding: 0.45rem 0.6rem;
-  background: #f5f5f7;
+  background: var(--surface-2);
   border-radius: 8px;
   font-size: 0.78rem;
+  border: 1px solid var(--divider);
 }
 
 button.secondary.small {
@@ -583,7 +754,6 @@ button.secondary.small {
 }
 
 /* Detail header and body */
-
 .detail-header {
   display: flex;
   gap: 0.55rem;
@@ -595,7 +765,7 @@ button.secondary.small {
   height: 14px;
   border-radius: 999px;
   align-self: center;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-soft);
 }
 
 .detail-meta {
@@ -627,17 +797,19 @@ button.secondary.small {
 /* shared shell for both text and html body */
 .detail-body {
   margin-top: 0.25rem;
-  padding: 0.6rem 0.7rem;
-  background: #f5f5f7;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--divider);
   border-radius: 8px;
   font-size: 0.88rem;
-  flex: 1;
-  overflow: auto;
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .detail-body.html iframe {
   width: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 0;
   border: 0;
   display: block;
 }
@@ -654,7 +826,6 @@ button.secondary.small {
 }
 
 /* Generic utilities */
-
 .empty-state {
   font-size: 0.85rem;
   color: var(--text-muted);
@@ -667,7 +838,6 @@ button.secondary.small {
 }
 
 /* Floating composer – bottom-right web panel */
-
 .composer {
   position: fixed;
   right: 1.5rem;
@@ -678,15 +848,16 @@ button.secondary.small {
   min-height: 260px;
   max-height: calc(100vh - 3rem);
   height: 420px;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 12px;
   box-shadow: var(--shadow-soft);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-soft);
   display: flex;
   flex-direction: column;
   z-index: 999;
   resize: none;
   overflow: hidden;
+  color: var(--text-main);
 }
 
 .composer input,
@@ -718,14 +889,13 @@ button.secondary.small {
 }
 
 /* header */
-
 .composer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.35rem 0.6rem;
-  border-bottom: 1px solid #e5e5ea;
-  background: #f5f5f7;
+  border-bottom: 1px solid var(--divider);
+  background: var(--surface-2);
 }
 
 .composer-header-left,
@@ -746,6 +916,7 @@ button.secondary.small {
   border-radius: 999px;
   cursor: pointer;
   font-size: 0.9rem;
+  color: var(--text-main);
 }
 
 .composer-icon-btn--secondary {
@@ -753,7 +924,7 @@ button.secondary.small {
 }
 
 .composer-icon-btn:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 .composer-header-link {
@@ -767,7 +938,7 @@ button.secondary.small {
 }
 
 .composer-header-link:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 .composer-title-hidden {
@@ -775,18 +946,18 @@ button.secondary.small {
 }
 
 /* extra-fields menu */
-
 .composer-extra-menu {
   position: absolute;
   right: 0;
   top: 120%;
-  background: #ffffff;
-  border: 1px solid #d4d4d8;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-soft);
   padding: 0.25rem 0;
   min-width: 150px;
   z-index: 1000;
+  color: var(--text-main);
 }
 
 .composer-extra-item {
@@ -798,21 +969,33 @@ button.secondary.small {
   cursor: pointer;
 }
 
+.composer-extra-item:hover {
+  background: var(--hover);
+}
+
 .composer-extra-item input[type="checkbox"] {
   cursor: pointer;
 }
 
 /* attachments bar */
 
+.detail-attachments-inline {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
 .composer-attachments {
   padding: 0.4rem 0.75rem;
-  border-top: 1px solid #e5e5ea;
-  border-bottom: 1px solid #e5e5ea;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   font-size: 0.78rem;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .attachment-pill {
@@ -821,12 +1004,12 @@ button.secondary.small {
   gap: 0.4rem;
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
-  background: #f3f4f6;
+  background: var(--hover);
   cursor: pointer;
 }
 
 .attachment-pill:hover {
-  background: #e5e7eb;
+  filter: brightness(0.95);
 }
 
 .attachment-pill-name {
@@ -853,6 +1036,7 @@ button.secondary.small {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: inherit;
 }
 
 .attachment-pill-icon .icon-img {
@@ -871,20 +1055,19 @@ button.secondary.small {
   display: none;
 }
 
-/* meta + body share same white background; only line breaks */
-
+/* meta + body share same background */
 .composer-main {
   display: flex;
   flex-direction: column;
   flex: 1;
-  background: #ffffff;
+  background: var(--surface);
   min-height: 0;
   overflow-y: auto;
 }
 
 .composer-meta {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e5e5ea;
+  border-bottom: 1px solid var(--divider);
 }
 
 .composer-row {
@@ -910,6 +1093,7 @@ button.secondary.small {
   padding: 0.2rem 0;
   background: transparent;
   font: inherit;
+  color: var(--text-main);
 }
 
 .composer-row input[type="text"]:focus,
@@ -919,7 +1103,6 @@ button.secondary.small {
 }
 
 /* address pill wrapper for To/Cc/Bcc */
-
 .composer-address-wrapper {
   flex: 1;
   min-height: 1.8rem;
@@ -950,13 +1133,12 @@ button.secondary.small {
 }
 
 /* individual address pill */
-
 .composer-address-pill {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
-  background: #e5e5ea;
+  background: var(--hover);
   font-size: 0.78rem;
   max-width: 200px;
 }
@@ -975,11 +1157,10 @@ button.secondary.small {
   margin-left: 0.2rem;
   padding: 0;
   line-height: 1;
+  color: inherit;
 }
 
 /* body */
-
-
 .composer-editor {
   flex: 1;
   min-height: 0;
@@ -999,14 +1180,15 @@ button.secondary.small {
   box-sizing: border-box;
   white-space: pre-wrap;     /* keep line breaks */
   overflow-y: auto;          /* scroll if long */
+  color: var(--text-main);
 }
 
 /* Quoted original message in composer */
 #composer-body blockquote {
   margin: 0.25rem 0;
   padding-left: 0.6rem;
-  border-left: 3px solid #c4d0ff; /* colored tab */
-  color: #4b5563;
+  border-left: 3px solid var(--quote-bar);
+  color: var(--text-muted);
 }
 
 .quoted-wrapper {
@@ -1017,20 +1199,20 @@ button.secondary.small {
 .quoted-wrapper blockquote {
   margin: 0;
   padding-left: 8px;
-  border-left: 2px solid #ccc;
+  border-left: 2px solid var(--border-soft);
 }
 
 .quoted-header {
   margin: 0 0 4px 0;
   font-size: 0.95em;
-  color: #4b5563;
+  color: var(--text-muted);
 }
 
 .quoted-original {
   margin: 0;
   padding-left: 0.6rem;
-  border-left: 3px solid #c4d0ff;
-  color: #4b5563;
+  border-left: 3px solid var(--quote-bar);
+  color: var(--text-muted);
 }
 
 .quoted-original p {
@@ -1041,8 +1223,6 @@ button.secondary.small {
   margin: 0;             /* Avoid spacing from <pre> blocks */
 }
 
-/* footer with Send + Send later */
-
 /* remove native button chrome inside attachment pills */
 .attachment-pill button {
   border: none !important;
@@ -1050,6 +1230,7 @@ button.secondary.small {
   background: transparent;
   box-shadow: none;
   padding: 0;
+  color: inherit;
 }
 
 /* filename button */
@@ -1073,14 +1254,13 @@ button.secondary.small {
   box-shadow: none;
 }
 
-
 .composer-footer {
   padding: 0.45rem 0.75rem 0.5rem;
   display: flex;
   justify-content: flex-end;
   gap: 0.4rem;
-  border-top: 1px solid #e5e5ea;
-  background: #f5f5f7;
+  border-top: 1px solid var(--divider);
+  background: var(--surface-2);
 }
 
 .send-later-wrapper {
@@ -1091,13 +1271,14 @@ button.secondary.small {
   position: absolute;
   right: 0;
   bottom: 110%;
-  background: #ffffff;
-  border: 1px solid #d4d4d8;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-soft);
   padding: 0.25rem 0;
   min-width: 170px;
   z-index: 1000;
+  color: var(--text-main);
 }
 
 .composer-send-later-menu button {
@@ -1108,14 +1289,14 @@ button.secondary.small {
   text-align: left;
   font-size: 0.8rem;
   cursor: pointer;
+  color: inherit;
 }
 
 .composer-send-later-menu button:hover {
-  background: #f3f4f6;
+  background: var(--hover);
 }
 
 /* minimized composer */
-
 .composer.composer--minimized {
   min-height: auto;
   height: auto;
@@ -1140,16 +1321,16 @@ button.secondary.small {
 .app-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.38);    /* matches other overlay usage */
+  background: var(--backdrop);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;                         /* above composer (999) */
+  z-index: 2000;
 }
 
 /* === Modal card === */
 .app-modal-dialog {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
   min-width: 280px;
@@ -1158,7 +1339,8 @@ button.secondary.small {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
 }
 
 /* Header */
@@ -1197,46 +1379,45 @@ button.secondary.small {
 /* Primary (blue) */
 .btn-primary {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
   border: none;
 }
 .btn-primary:hover {
-  background: #0060df;
+  filter: brightness(0.92);
 }
 
 /* Secondary (neutral) */
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid #d2d5de;
-  color: #111827;
+  background: var(--input-bg-2);
+  border: 1px solid var(--input-border);
+  color: var(--text-main);
 }
 .btn-secondary:hover {
-  background: #e5e5ea;
+  background: var(--hover);
 }
 
 /* Danger */
 .btn-danger {
   background: var(--danger);
-  color: #ffffff;
+  color: var(--text-on-danger);
   border: none;
 }
 .btn-danger:hover {
-  background: #b91c1c;
+  filter: brightness(0.92);
 }
-
 
 .inline-error,
 .composer-error {
   margin-top: 0.5rem;
   font-size: 0.85rem;
-  color: #b91c1c;
+  color: var(--error-text);
 }
 
 .composer-error {
   margin-left: 1rem;
 }
 
-
+/* Detail attachments */
 .detail-attachments {
   margin-top: 0.15rem;
 }
@@ -1260,7 +1441,7 @@ button.secondary.small {
   height: 8px;
 }
 .detail-attachments-strip::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 .detail-attachments-strip::-webkit-scrollbar-track {
@@ -1281,18 +1462,19 @@ button.secondary.small {
 
   padding: 0.5rem 0.6rem;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #f5f5f7; /* matches detail-body shell */
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
   box-shadow: none;
 
   cursor: pointer;
   scroll-snap-align: start;
   transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+  color: var(--text-main);
 }
 
 .attachment-card:hover {
-  background: #ededf0;
-  border-color: #d1d5db;
+  background: var(--hover);
+  border-color: var(--border-soft);
 }
 
 .attachment-card:active {
@@ -1303,7 +1485,7 @@ button.secondary.small {
 .attachment-card:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.28);
+  box-shadow: 0 0 0 1px var(--focus-ring-strong);
 }
 
 .attachment-card.is-disabled {

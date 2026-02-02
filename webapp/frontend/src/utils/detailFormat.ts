@@ -14,10 +14,14 @@ export function getDetailHeader(overview: EmailOverview | null, msg: EmailMessag
   const dateVerbose = formatDate(dateVal, true);
 
   return {
+    account: msg?.ref.account || "",
+    mailbox: msg?.ref.mailbox || "",
+    uid: msg?.ref.uid || -1,
     subject: subj,
     fromLine: `From: ${fromAddr}`,
     toLine: toAddr ? `To: ${toAddr}` : "",
     dateLine: `Date: ${dateVerbose}`,
+    attachments: msg?.attachments || [],
     html: msg?.html || "",
     text: msg?.text || "",
   };

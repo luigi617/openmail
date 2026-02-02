@@ -5,7 +5,6 @@ import { getMailboxDisplayName } from "../../utils/emailFormat";
 import { getDetailHeader } from "../../utils/detailFormat";
 import DetailBody from "../Detail/DetailBody";
 import DetailToolbar from "../Detail/DetailToolbar";
-import DetailAttachments from "../Detail/DetailAttachments";
 
 export type DetailColumnProps = {
   selectedOverview: EmailOverview | null;
@@ -26,6 +25,47 @@ export type DetailColumnProps = {
   onMove: (destinationMailbox: string) => void;
 };
 
+function EmailMessageCard({
+  overview,
+  message,
+  badgeColor,
+}: {
+  overview: EmailOverview;
+  message: EmailMessage | null;
+  badgeColor: string;
+}) {
+  const header = useMemo(() => {
+    return getDetailHeader(overview, message);
+  }, [overview, message]);
+
+  if (!header) return null;
+
+  return (
+    <article className="thread-email-card">
+      <div className="detail-header">
+        <span className="detail-badge" style={{ background: badgeColor }} />
+        <div className="detail-meta">
+          <div className="detail-subject">{header.subject}</div>
+          <div className="detail-line">{header.fromLine}</div>
+          <div className="detail-line">{header.toLine}</div>
+          <div className="detail-line small">{header.dateLine}</div>
+        </div>
+      </div>
+
+      <hr />
+
+      <DetailBody
+        account={header.account}
+        mailbox={header.mailbox}
+        email_id={header.uid as number}
+        html={header.html}
+        text={header.text}
+        attachments={header.attachments}
+      />
+    </article>
+  );
+}
+
 export default function DetailColumn(props: DetailColumnProps) {
   const [moveOpen, setMoveOpen] = useState(false);
 
@@ -45,9 +85,14 @@ export default function DetailColumn(props: DetailColumnProps) {
     setDestinationMailbox(props.currentMailbox);
   }, [props.currentMailbox, props.selectedOverview]);
 
-  const header = useMemo(() => {
-    if (!props.selectedOverview && !props.selectedMessage) return null;
-    return getDetailHeader(props.selectedOverview, props.selectedMessage);
+  const threadItems = useMemo(() => {
+    if (!props.selectedOverview) return [];
+    return [
+      {
+        overview: props.selectedOverview,
+        message: props.selectedMessage,
+      },
+    ];
   }, [props.selectedOverview, props.selectedMessage]);
 
   return (
@@ -60,7 +105,7 @@ export default function DetailColumn(props: DetailColumnProps) {
         </div>
       ) : (
         <div id="email-detail" className="email-detail">
-          {/* toolbar */}
+          {/* toolbar (stays above the scrolling thread) */}
           <DetailToolbar
             onArchive={props.onArchive}
             onDelete={props.onDelete}
@@ -115,46 +160,18 @@ export default function DetailColumn(props: DetailColumnProps) {
             </div>
           )}
 
-          {/* header */}
-          {header && (
-            <>
-              <div className="detail-header">
-                <span
-                  className="detail-badge"
-                  style={{ background: props.getColorForEmail(props.selectedOverview) }}
+          {/* THREAD SCROLLER */}
+          <div className="detail-thread" role="list">
+            {threadItems.map((item) => (
+              <div key={`${item.overview.ref.account}:${item.overview.ref.uid}`} role="listitem">
+                <EmailMessageCard
+                  overview={item.overview}
+                  message={item.message}
+                  badgeColor={props.getColorForEmail(item.overview)}
                 />
-                <div className="detail-meta">
-                  <div id="detail-subject" className="detail-subject">
-                    {header.subject}
-                  </div>
-                  <div id="detail-from" className="detail-line">
-                    {header.fromLine}
-                  </div>
-                  <div id="detail-to" className="detail-line">
-                    {header.toLine}
-                  </div>
-                  <div id="detail-datetime" className="detail-line small">
-                    {header.dateLine}
-                  </div>
-                </div>
               </div>
-              <hr />
-
-              <DetailBody html={header.html} text={header.text} />
-              {/* ✅ Attachments like DetailBody: separate component */}
-              {props.selectedMessage && props.selectedMessage.attachments.length > 0 && (
-                <>
-                  <hr />
-                  <DetailAttachments 
-                    attachments={props.selectedMessage?.attachments} 
-                    account={props.selectedMessage.ref.account}
-                    email_id={props.selectedMessage.ref.uid}
-                    mailbox={props.selectedMessage.ref.mailbox}
-                  />
-                </>
-              )}
-            </>
-          )}
+            ))}
+          </div>
         </div>
       )}
     </section>

@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Layout from "./components/Layout/Layout";
 import Composer from "./components/Composer/Composer";
 import AppAlertModal from "./components/Modal/AppAlertModal";
@@ -9,9 +9,18 @@ import { useAppModal } from "./hooks/useAppModal";
 import { useComposer } from "./hooks/useComposer";
 import { useDetailActions } from "./hooks/useDetailActions";
 
+import { applyTheme } from "./theme/applyTheme";
+import { onSystemThemeChange } from "./theme/systemTheme";
+
+
 export default function App() {
   const core = useEmailAppCore();
   const modal = useAppModal();
+
+  useEffect(() => {
+    applyTheme("system");
+    return onSystemThemeChange(() => applyTheme("system"));
+  }, []);
 
   // local UI toggles for composer menus
   const [composerExtraMenuOpen, setComposerExtraMenuOpen] = useState(false);
