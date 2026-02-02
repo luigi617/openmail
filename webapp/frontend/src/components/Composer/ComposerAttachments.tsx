@@ -1,5 +1,4 @@
 // src/components/Composer/ComposerAttachments.tsx
-import React from "react";
 import closeIcon from "@/assets/svg/close.svg";
 
 export type ComposerAttachmentsProps = {

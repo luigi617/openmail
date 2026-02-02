@@ -1,4 +1,3 @@
-import React from "react";
 import EmailsHeader from "../Middle/EmailsHeader";
 import EmailList from "../Middle/EmailList";
 import type { EmailOverview } from "../../types/email"

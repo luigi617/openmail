@@ -1,5 +1,5 @@
 // src/components/Sidebar/MailboxTree.tsx
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { MailboxData } from "../../types/email";
 import { getMailboxDisplayName } from "../../utils/emailFormat";
 

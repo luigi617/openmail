@@ -1,4 +1,3 @@
-import React from "react";
 import type { EmailOverview } from "../../types/email";
 import { formatDate } from "../../utils/emailFormat";
 

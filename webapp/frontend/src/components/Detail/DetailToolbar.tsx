@@ -1,4 +1,4 @@
-import React from "react";
+
 import archiveIcon from "@/assets/svg/box-archive.svg";
 import deleteIcon from "@/assets/svg/delete.svg";
 import replyIcon from "@/assets/svg/reply.svg";

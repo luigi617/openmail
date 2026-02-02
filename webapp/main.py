@@ -1,27 +1,26 @@
-from datetime import datetime, timezone
 import io
 import mimetypes
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from pathlib import Path
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Response, UploadFile
 from fastapi import Form, File
-from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 
 from email_management import EmailManager
 from email_management.types import EmailRef
-from email_management.models import EmailMessage, EmailOverview
-from email_management.imap import PagedSearchResult
+from email_management.models import EmailMessage
 
 from email_service import parse_accounts
-from utils import uploadfiles_to_attachments, build_extra_headers, encode_cursor, decode_cursor, safe_filename
+from utils import uploadfiles_to_attachments, build_extra_headers, safe_filename
 from email_overview import build_email_overview
+from starlette.middleware.gzip import GZipMiddleware
 
 BASE = Path(__file__).parent
 
@@ -34,6 +33,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -506,3 +507,34 @@ async def send_email(
         "account": account,
         "result": send_result.to_dict(),
     }
+
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+FRONTEND_DIR = BASE / "frontend"
+DIST_DIR = FRONTEND_DIR / "dist"
+
+if DIST_DIR.exists():
+    # Vite puts hashed assets in dist/assets
+    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+
+    # If you have other static files in dist (favicon, manifest, etc),
+    # you can mount the whole dist as well. This works because "/assets"
+    # is more specific and will win for /assets/*.
+    app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
+
+    @app.get("/{path:path}")
+    def spa(path: str):
+        """
+        Serve the SPA index for any non-API route.
+        """
+        # Never hijack API routes
+        if path.startswith("api/") or path == "api":
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # Serve actual built files if requested directly (favicon, manifest, etc.)
+        candidate = DIST_DIR / path
+        if path and candidate.is_file():
+            return FileResponse(candidate)
+
+        # Default: SPA entrypoint
+        return FileResponse(DIST_DIR / "index.html")

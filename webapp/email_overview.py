@@ -37,8 +37,6 @@ class _DerivedIMAPQueryCache:
         item = self._store.get(key)
         if not item:
             return None
-        print(key)
-        print(item.debug_repr)
 
         # TTL check
         if (time.time() - item.created_at) > self.ttl_seconds:

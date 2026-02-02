@@ -1,5 +1,5 @@
 // src/components/Sidebar/LegendCard.tsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 export type LegendCardProps = {
   accounts: string[];

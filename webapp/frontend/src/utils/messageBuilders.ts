@@ -8,7 +8,7 @@ function senderLabel(fromObj?: EmailAddress) {
   return fromObj.name || fromObj.email || "unknown sender";
 }
 
-function preferOriginalHtml(msg?: EmailMessage | null, ov?: EmailOverview | null) {
+function preferOriginalHtml(msg?: EmailMessage | null) {
   if (msg?.html) return msg.html;
   if (msg?.text) return `<pre>${escapeHtml(msg.text)}</pre>`;
   return "";
@@ -36,7 +36,7 @@ export function buildQuotedOriginalBodyHtml(overview: EmailOverview | null, msg:
     headerLine = `${who} wrote:`;
   }
 
-  const originalHtml = preferOriginalHtml(msg, overview);
+  const originalHtml = preferOriginalHtml(msg);
   const safeHeader = escapeHtml(headerLine);
 
   const html = !originalHtml
@@ -75,7 +75,7 @@ export function buildForwardedOriginalBodyHtml(overview: EmailOverview | null, m
   const toList = msg?.to || overview?.to || [];
   const toAddr = formatAddressList(toList);
 
-  const originalHtml = preferOriginalHtml(msg, overview);
+  const originalHtml = preferOriginalHtml(msg);
 
   const headerLines = [
     "---------- Forwarded message ---------",

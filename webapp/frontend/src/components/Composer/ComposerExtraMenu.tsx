@@ -1,5 +1,5 @@
 // src/components/Composer/ComposerExtraMenu.tsx
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import type { ComposerExtraFieldKey } from "../../types/composer";
 

@@ -1,5 +1,5 @@
 // src/components/Composer/ComposerEditor.tsx
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export type ComposerEditorProps = {
   value: string;

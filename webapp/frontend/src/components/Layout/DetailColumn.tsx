@@ -1,5 +1,5 @@
 // src/components/Layout/DetailColumn.tsx
-import React, { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { EmailMessage, EmailOverview, MailboxData } from "../../types/email"
 import { getMailboxDisplayName } from "../../utils/emailFormat";
 import { getDetailHeader } from "../../utils/detailFormat";
@@ -41,7 +41,7 @@ export default function DetailColumn(props: DetailColumnProps) {
 
 
   // keep destination in sync when mailbox changes or selection changes
-  React.useEffect(() => {
+  useEffect(() => {
     setDestinationMailbox(props.currentMailbox);
   }, [props.currentMailbox, props.selectedOverview]);
 

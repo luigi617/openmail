@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Layout from "./components/Layout/Layout";
 import Composer from "./components/Composer/Composer";
 import AppAlertModal from "./components/Modal/AppAlertModal";

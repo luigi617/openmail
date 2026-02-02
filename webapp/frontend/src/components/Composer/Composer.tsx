@@ -1,5 +1,5 @@
 // src/components/Composer/Composer.tsx
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { AddressChipsInput } from "./AddressChipsInput";
 import ComposerExtraMenu from "./ComposerExtraMenu";
 import ComposerEditor from "./ComposerEditor";

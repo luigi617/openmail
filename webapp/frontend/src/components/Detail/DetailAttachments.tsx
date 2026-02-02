@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { Attachment } from "../../types/email";
 import downloadIcon from "../../assets/svg/download.svg";
 

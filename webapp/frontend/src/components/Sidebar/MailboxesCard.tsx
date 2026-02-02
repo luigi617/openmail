@@ -1,5 +1,4 @@
 // src/components/Sidebar/MailboxesCard.tsx
-import React from "react";
 import MailboxTree from "./MailboxTree";
 import type { MailboxData } from "../../types/email";
 

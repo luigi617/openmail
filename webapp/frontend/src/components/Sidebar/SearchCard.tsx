@@ -1,5 +1,4 @@
 // src/components/Sidebar/SearchCard.tsx
-import React from "react";
 import searchIcon from "@/assets/svg/search.svg";
 
 type Props = {

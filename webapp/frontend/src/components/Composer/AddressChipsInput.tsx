@@ -1,5 +1,5 @@
 // src/components/Composer/AddressChipsInput.tsx
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   fieldId: string; // used for id attribute (composer-to, etc.)

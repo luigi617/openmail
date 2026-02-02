@@ -1,5 +1,4 @@
 // src/components/Layout/Sidebar.tsx
-import React from "react";
 import SearchCard from "../Sidebar/SearchCard";
 import MailboxesCard from "../Sidebar/MailboxesCard";
 import LegendCard from "../Sidebar/LegendCard";
