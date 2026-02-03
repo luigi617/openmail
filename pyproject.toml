@@ -62,6 +62,7 @@ ignore = [
   "UP006", # don't force list[str] over List[str]
   "UP007", # don't force X | Y over Union[X, Y] (optional)
   "UP045", # typing.Any/typing.Optional modernizations etc (optional)
+  "E731",  # allow assign a `lambda` expression to name
 ]
 
 [tool.ruff.lint.isort]

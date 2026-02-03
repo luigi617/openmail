@@ -340,21 +340,19 @@ class FakeIMAPClient:
             msg = stored.msg
             flags = set(stored.flags)
 
-            # Minimal headers needed by parse_overview()
-            # Keep it conservative; parse_overview reads common fields.
-            hdr_lines: List[str] = []
-            def _add(name: str, value: Optional[str]) -> None:
-                if value is None:
-                    return
-                if value == "":
+
+            def _add_header(hdr_lines: List[str], name: str, value: Optional[str]) -> None:
+                if not value:  # covers None and ""
                     return
                 hdr_lines.append(f"{name}: {value}")
 
-            _add("From", msg.headers.get("From") or msg.from_email)
-            _add("To", msg.headers.get("To") or (", ".join(msg.to) if msg.to else ""))
-            _add("Subject", msg.headers.get("Subject") or msg.subject)
-            _add("Date", msg.headers.get("Date") or (msg.received_at.isoformat() if msg.received_at else ""))
-            _add("Message-ID", msg.headers.get("Message-ID") or (msg.message_id or ""))
+            hdr_lines: List[str] = []
+            _add_header(hdr_lines, "From", msg.headers.get("From") or msg.from_email)
+            _add_header(hdr_lines, "To", msg.headers.get("To") or (", ".join(msg.to) if msg.to else None))
+            _add_header(hdr_lines, "Subject", msg.headers.get("Subject") or msg.subject)
+            _add_header(hdr_lines, "Date", msg.headers.get("Date") or (msg.received_at.isoformat() if msg.received_at else None))
+            _add_header(hdr_lines, "Message-ID", msg.headers.get("Message-ID") or msg.message_id)
+
 
             # Preserve any other stored headers that might matter for tests (best-effort)
             # but avoid duplicates for the main ones.

@@ -357,8 +357,8 @@ def test_fetch_latest_unseen_and_limit(manager: EmailManager, fake_imap: FakeIMA
     m1 = make_email_message(uid=1, text="m1")
     m2 = make_email_message(uid=2, text="m2")
     m3 = make_email_message(uid=3, text="m3")
-    r1 = fake_imap.add_parsed_message("INBOX", m1)
-    r2 = fake_imap.add_parsed_message("INBOX", m2)
+    fake_imap.add_parsed_message("INBOX", m1)
+    fake_imap.add_parsed_message("INBOX", m2)
     r3 = fake_imap.add_parsed_message("INBOX", m3)
 
     # mark newest as seen
