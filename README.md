@@ -20,7 +20,7 @@ pip install email-management
 ## ✨ Features
 
 - IMAP + SMTP high-level convenience via `EmailManager`
-- Fluent IMAP builder via `EasyIMAPQuery`
+- Fluent IMAP builder via `EmailQuery`
 - Natural-language IMAP queries, email summarization, reply assistant, email analysis...
 
 ---
@@ -30,13 +30,13 @@ pip install email-management
 | Component | Responsibility |
 |---|---|
 | **EmailManager** | Coordinates SMTP & IMAP, handles sending, replying, forwarding, inbox triage |
-| **EasyIMAPQuery** | Fluent IMAP builder with optional NL search |
+| **EmailQuery** | Fluent IMAP builder with optional NL search |
 | **EmailAssistant** | LLM entry point for summary, reply, task extraction, classification, etc. |
 
 Detailed component documentation is provided in:
 - [`docs/EmailAssistant.md`](docs/EmailAssistant.md)
 - [`docs/EmailManager.md`](docs/EmailManager.md)
-- [`docs/EasyIMAPQuery.md`](docs/EasyIMAPQuery.md)
+- [`docs/EmailQuery.md`](docs/EmailQuery.md)
 
 ---
 
@@ -161,7 +161,7 @@ This README covers overall usage. Focused guides are in:
 
 - [`docs/EmailAssistant.md`](docs/EmailAssistant.md)
 - [`docs/EmailManager.md`](docs/EmailManager.md)
-- [`docs/EasyIMAPQuery.md`](docs/EasyIMAPQuery.md)
+- [`docs/EmailQuery.md`](docs/EmailQuery.md)
 
 ---
 

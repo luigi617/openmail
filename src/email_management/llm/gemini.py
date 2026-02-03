@@ -20,6 +20,7 @@ def get_gemini(
 
     llm_structured = base_llm.with_structured_output(pydantic_model)
     base_prompt = ChatPromptTemplate.from_messages([
+        ("system", "Return ONLY valid JSON that matches the required schema. No extra text."),
         MessagesPlaceholder("messages")
     ])
     chain = base_prompt | llm_structured

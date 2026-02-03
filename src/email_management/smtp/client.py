@@ -4,8 +4,9 @@ import smtplib
 import ssl
 import threading
 from dataclasses import dataclass, field
+from email.utils import parseaddr
 from email.message import EmailMessage as PyEmailMessage
-from typing import Iterable
+from typing import Iterable, List
 
 from email_management import SMTPConfig
 from email_management.errors import AuthError, ConfigError, SMTPError
@@ -123,42 +124,6 @@ class SMTPClient:
         # If we get here, we had repeated disconnects
         raise SMTPError(f"SMTP connection repeatedly disconnected: {last_exc}") from last_exc
 
-    def _prepare_message(self, msg: PyEmailMessage) -> tuple[PyEmailMessage, str, list[str]]:
-        """
-        Ensure From and recipients are present.
-        Returns (cloned_msg, from_email, all_recipients).
-        """
-        to_all = (
-            msg.get_all("To", [])
-            + msg.get_all("Cc", [])
-            + msg.get_all("Bcc", [])
-        )
-        if not to_all:
-            raise ConfigError("No recipients (To/Cc/Bcc are all empty)")
-
-        all_recipients = list(to_all)
-
-        from_email = msg.get("From")
-        needs_copy = False
-
-        if not from_email:
-            from_email = self._from_email()
-            needs_copy = True
-
-        if "Bcc" in msg:
-            needs_copy = True
-
-        if needs_copy:
-            msg = copy.deepcopy(msg)
-
-        if "From" not in msg:
-            msg["From"] = from_email
-
-        if "Bcc" in msg:
-            del msg["Bcc"]
-
-        return msg, from_email, all_recipients
-    
     def _send_with_known_server(self, server: smtplib.SMTP, msg: PyEmailMessage, from_email: str, recipients: list[str]) -> SendResult:
         try:
             server.send_message(msg, from_addr=from_email, to_addrs=recipients)
@@ -168,21 +133,50 @@ class SMTPClient:
         self._sent_since_connect += 1
         return SendResult(ok=True, message_id=str(msg["Message-ID"]))
 
-    def send(self, msg: PyEmailMessage) -> "SendResult":
-        prepped_msg, from_email, recipients = self._prepare_message(msg)
+    def send(self, msg: PyEmailMessage, recipients: List[str]) -> "SendResult":
+        if not recipients:
+            raise ConfigError("send(): recipients list is empty")
+        
+        hdr_from = msg.get("From")
+        if hdr_from:
+            _, from_email = parseaddr(hdr_from)
+            if not from_email:
+                from_email = self._from_email()
+        else:
+            from_email = self._from_email()
+            # keep the message self-consistent for debugging/logging
+            msg = copy.deepcopy(msg)
+            msg["From"] = from_email
 
         def _impl(server: smtplib.SMTP) -> SendResult:
-            return self._send_with_known_server(server, prepped_msg, from_email, recipients)
+            return self._send_with_known_server(server, msg, from_email, recipients)
 
         return self._run_with_server(_impl)
     
-    def send_many(self, messages: Iterable[PyEmailMessage]) -> list[SendResult]:
+    def send_many(self, batch: Iterable[tuple[PyEmailMessage, Iterable[str]]]) -> list[SendResult]:
+
         """
         Send multiple messages in a single (or minimal) SMTP session.
         """
-        prepared: list[tuple[PyEmailMessage, str, list[str]]] = [
-            self._prepare_message(msg) for msg in messages
-        ]
+        prepared: list[tuple[PyEmailMessage, str, list[str]]] = []
+
+        for msg, rcpts_iter in batch:
+            rcpts = list(rcpts_iter)
+            if not rcpts:
+                raise ConfigError("send_many(): one of the messages has no recipients")
+
+            hdr_from = msg.get("From")
+            if hdr_from:
+                _, from_email = parseaddr(hdr_from)
+                if not from_email:
+                    from_email = self._from_email()
+                final_msg = msg
+            else:
+                from_email = self._from_email()
+                final_msg = copy.deepcopy(msg)
+                final_msg["From"] = from_email
+
+            prepared.append((final_msg, from_email, rcpts))
 
         results: list[SendResult] = []
         i = 0

@@ -12,7 +12,7 @@ class OAuth2Auth:
     - token_provider() -> access_token (string)
     """
     username: str
-    token_provider: Callable[[], str]
+    token_provider: Callable[..., str]
 
     def _raw_xoauth2(self, access_token: str) -> str:
         return f"user={self.username}\x01auth=Bearer {access_token}\x01\x01"

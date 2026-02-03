@@ -25,6 +25,13 @@ dependencies = [
 test = [
     "pytest",
 ]
+web = [
+    "python-dotenv",
+    "fastapi[standard]",
+    "uvicorn",
+    "jinja2",
+    "python-multipart",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/email_management"]

@@ -170,7 +170,7 @@ class SubscriptionService:
                 msg.set_content("Please unsubscribe me.")
 
                 try:
-                    send_res = self.smtp.send(msg)
+                    send_res = self.smtp.send(msg, [method.value])
                 except Exception as exc:
                     send_res = SendResult(ok=False, detail=f"error: {exc!r}")
 

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
 import html as _html
 from dataclasses import dataclass
 from email.message import EmailMessage as PyEmailMessage
 from typing import Dict, List, Optional, Sequence, Set
 
-from .email_query import EasyIMAPQuery
-from email_management.models import UnsubscribeCandidate, EmailMessage, UnsubscribeActionResult, Attachment
+from .email_query import EmailQuery
+from email_management.models import (UnsubscribeCandidate,
+                                     EmailMessage,
+                                     EmailOverview,
+                                     UnsubscribeActionResult,
+                                     Attachment)
 from email_management.subscription import SubscriptionService, SubscriptionDetector
-from email_management.imap import IMAPClient
+from email_management.imap import IMAPClient, PagedSearchResult
 from email_management.smtp import SMTPClient
 from email_management.types import EmailRef, SendResult
 from email_management.utils import (ensure_reply_subject,
@@ -19,8 +22,10 @@ from email_management.utils import (ensure_reply_subject,
                                     dedup_addrs,
                                     build_references,
                                     remove_addr,
-                                    quote_original_text,
-                                    quote_original_html)
+                                    quote_original_reply_text,
+                                    quote_original_reply_html,
+                                    quote_forward_text,
+                                    quote_forward_html)
 
 
 SEEN = r"\Seen"
@@ -79,6 +84,23 @@ class EmailManager:
                     filename=filename,
                 )
     
+    def _extract_envelope_recipients(self, msg: PyEmailMessage) -> list[str]:
+        addr_headers = []
+        addr_headers.extend(msg.get_all("To", []))
+        addr_headers.extend(msg.get_all("Cc", []))
+        addr_headers.extend(msg.get_all("Bcc", []))
+
+        pairs = parse_addrs(*addr_headers)
+        # simple dedup by lowercase address
+        seen = set()
+        result: list[str] = []
+        for _, addr in pairs:
+            norm = addr.strip().lower()
+            if norm and norm not in seen:
+                seen.add(norm)
+                result.append(addr)
+        return result
+    
     def fetch_message_by_ref(
         self,
         ref: EmailRef,
@@ -92,6 +114,19 @@ class EmailManager:
         if not msgs:
             raise ValueError(f"No message found for ref: {ref!r}")
         return msgs[0]
+    
+    def fetch_attachment_by_ref_and_meta(
+        self,
+        ref: EmailRef,
+        attachment_part: str,
+    ) -> bytes:
+        """
+        Fetch exactly one EmailMessage by EmailRef.
+        """
+        attachment = self.imap.fetch_attachment(ref, attachment_part)
+        if not attachment:
+            raise ValueError(f"No attachment found for ref: {ref!r} and part: {attachment_part!r}")
+        return attachment
 
     def fetch_messages_by_multi_refs(
         self,
@@ -107,39 +142,15 @@ class EmailManager:
         return list(self.imap.fetch(refs, include_attachments=include_attachments))
 
     def send(self, msg: PyEmailMessage) -> SendResult:
-        return self.smtp.send(msg)
+        recipients = self._extract_envelope_recipients(msg)
+
+        if "Bcc" in msg:
+            del msg["Bcc"]
+        
+        if not recipients:
+            raise ValueError("send(): no recipients found in To/Cc/Bcc")
     
-    def send_later(
-        self,
-        *,
-        subject: str,
-        to: Sequence[str],
-        from_addr: Optional[str] = None,
-        scheduled_at: datetime,
-        cc: Sequence[str] = (),
-        bcc: Sequence[str] = (),
-        text: Optional[str] = None,
-        html: Optional[str] = None,
-        attachments: Optional[Sequence[Attachment]] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-    ) -> PyEmailMessage:
-        """
-        Build an email intended for future sending.
-        Caller can store/send later via EmailManager.send(msg).
-        """
-        msg = self.compose(
-            subject=subject,
-            to=to,
-            from_addr=from_addr,
-            cc=cc,
-            bcc=bcc,
-            text=text,
-            html=html,
-            attachments=attachments,
-            extra_headers=extra_headers,
-        )
-        msg["X-Scheduled-At"] = scheduled_at.isoformat()
-        return msg
+        return self.smtp.send(msg, recipients)
 
     def compose(
         self,
@@ -162,8 +173,6 @@ class EmailManager:
         - attachments: list of your Attachment models
         - extra_headers: optional extra headers (e.g. Reply-To)
         """
-        if not to:
-            raise ValueError("compose(): 'to' must contain at least one recipient")
 
         msg = PyEmailMessage()
 
@@ -204,6 +213,12 @@ class EmailManager:
         """
         Convenience wrapper: compose a new email and send it.
         """
+
+        if not to and not cc and not bcc:
+            raise ValueError(
+                "compose_and_send(): at least one of to/cc/bcc must contain a recipient"
+            )
+    
         msg = self.compose(
             subject=subject,
             to=to,
@@ -252,60 +267,76 @@ class EmailManager:
         self,
         original: EmailMessage,
         *,
-        body: str,
-        body_html: Optional[str] = None,
+        text: str,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
         quote_original: bool = False,
+        to: Optional[Sequence[str]] = None,
+        cc: Optional[Sequence[str]] = None,
+        bcc: Optional[Sequence[str]] = None,
+        subject: Optional[str] = None,
+        attachments: Optional[Sequence[Attachment]] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> SendResult:
         """
-        Reply to a single sender, based on our EmailMessage model.
+        Reply to a single sender.
 
-        - To: Reply-To (if present) or From of the original
-        - Subject: Re: <original subject> (added only once)
-        - Threading: In-Reply-To, References (if message_id is present)
-        - body: plain-text reply body
-        - body_html: optional HTML version of the reply
-        - quote_original: if True, append a quoted block of the original email
-          to the reply (text and HTML, if available)
+        - If to/cc/bcc/subject/attachments are None, sensible defaults are derived
+          from `original`.
+        - If provided, they override the defaults but threading headers are still
+          managed here.
         """
-        msg = PyEmailMessage()
+        if to is None:
+            reply_to = get_header(original.headers, "Reply-To") or original.from_email
+            if not reply_to:
+                raise ValueError("reply(): original message has no Reply-To or From address")
 
-        if from_addr:
-            msg["From"] = from_addr
+            to_pairs = parse_addrs(reply_to)
+            to_addrs = dedup_addrs(to_pairs)
+            if not to_addrs:
+                raise ValueError("reply(): could not parse any valid reply addresses")
+        else:
+            to_addrs = list(to)
 
-        msg["Subject"] = ensure_reply_subject(original.subject)
+        cc_addrs = list(cc) if cc is not None else []
+        bcc_addrs = list(bcc) if bcc is not None else []
 
-        reply_to = get_header(original.headers, "Reply-To") or original.from_email
-        if not reply_to:
-            raise ValueError("reply(): original message has no Reply-To or From address")
-        
-        to_pairs = parse_addrs(reply_to)
-        to_addrs = dedup_addrs(to_pairs)
-        if not to_addrs:
-            raise ValueError("reply(): could not parse any valid reply addresses")
+        final_subject = subject or ensure_reply_subject(original.subject)
 
-        msg["To"] = ", ".join(to_addrs)
-
+        headers: Dict[str, str] = {}
         orig_mid = original.message_id
         if orig_mid:
-            msg["In-Reply-To"] = orig_mid
+            headers["In-Reply-To"] = orig_mid
             existing_refs = get_header(original.headers, "References")
-            msg["References"] = build_references(existing_refs, orig_mid)
+            headers["References"] = build_references(existing_refs, orig_mid)
+
+        if extra_headers:
+            headers.update(extra_headers)
 
         if quote_original:
-            quoted_text = quote_original_text(original)
-            text_body = body + "\n\n" + quoted_text if body else quoted_text
+            quoted_text = quote_original_reply_text(original)
+            text_body = text + "\n\n" + quoted_text if text else quoted_text
 
-            if body_html is not None:
-                quoted_html = quote_original_html(original)
-                html_body = body_html + "<br><br>" + quoted_html
+            if html is not None:
+                quoted_html = quote_original_reply_html(original)
+                html_body = html + "<br><br>" + quoted_html
             else:
                 html_body = None
         else:
-            text_body = body
-            html_body = body_html
+            text_body = text
+            html_body = html
 
-        self._set_body(msg, text_body, html_body)
+        msg = self.compose(
+            subject=final_subject,
+            to=to_addrs,
+            from_addr=from_addr,
+            cc=cc_addrs,
+            bcc=bcc_addrs,
+            text=text_body,
+            html=html_body,
+            attachments=attachments,
+            extra_headers=headers or None,
+        )
 
         return self.send(msg)
 
@@ -313,184 +344,181 @@ class EmailManager:
         self,
         original: EmailMessage,
         *,
-        body: str,
-        body_html: Optional[str] = None,
+        text: str,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
         quote_original: bool = False,
+        to: Optional[Sequence[str]] = None,
+        cc: Optional[Sequence[str]] = None,
+        bcc: Optional[Sequence[str]] = None,
+        subject: Optional[str] = None,
+        attachments: Optional[Sequence[Attachment]] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> SendResult:
         """
-        Reply to everyone:
+        Reply to everyone.
 
-        - To: Reply-To (or From) from original
-        - Cc: everyone in original To/Cc (except yourself and duplicates)
-        - Subject: Re: <original subject>
-        - Threading: In-Reply-To, References
-        - body/body_html: reply content
-        - quote_original: if True, append a quoted block of the original email
-          to the reply (text and HTML, if available)
+        - If to/cc/bcc are None, they are derived from original (Reply-To/From + To/Cc).
+        - If provided, we trust the UI values and do not recompute recipients.
         """
-        msg = PyEmailMessage()
+        # Recipients
+        if to is None and cc is None and bcc is None:
+            # Derive default reply-all recipients
+            primary = get_header(original.headers, "Reply-To") or original.from_email
+            primary_pairs = parse_addrs(primary) if primary else []
 
-        if from_addr:
-            msg["From"] = from_addr
+            to_str = ", ".join(original.to) if original.to else ""
+            cc_str = ", ".join(original.cc) if original.cc else ""
+            others_pairs = parse_addrs(to_str, cc_str)
 
-        msg["Subject"] = ensure_reply_subject(original.subject)
+            if from_addr:
+                primary_pairs = remove_addr(primary_pairs, from_addr)
+                others_pairs = remove_addr(others_pairs, from_addr)
 
-        primary = get_header(original.headers, "Reply-To") or original.from_email
-        primary_pairs = parse_addrs(primary) if primary else []
+            primary_set = {addr.strip().lower() for _, addr in primary_pairs}
+            cc_pairs = [(n, a) for (n, a) in others_pairs if a.strip().lower() not in primary_set]
 
-        to_str = ", ".join(original.to) if original.to else ""
-        cc_str = ", ".join(original.cc) if original.cc else ""
-        others_pairs = parse_addrs(to_str, cc_str)
-
-        if from_addr:
-            primary_pairs = remove_addr(primary_pairs, from_addr)
-            others_pairs = remove_addr(others_pairs, from_addr)
-
-        primary_set = {addr.strip().lower() for _, addr in primary_pairs}
-        cc_pairs = [(n, a) for (n, a) in others_pairs if a.strip().lower() not in primary_set]
-
-        to_addrs = dedup_addrs(primary_pairs)
-        cc_addrs = dedup_addrs(cc_pairs)
+            to_addrs = dedup_addrs(primary_pairs)
+            cc_addrs = dedup_addrs(cc_pairs)
+            bcc_addrs: List[str] = []
+        else:
+            to_addrs = list(to) if to is not None else []
+            cc_addrs = list(cc) if cc is not None else []
+            bcc_addrs = list(bcc) if bcc is not None else []
 
         if not to_addrs:
-            raise ValueError("reply_all(): no primary recipients after filtering")
+            raise ValueError("reply_all(): no primary recipients")
 
-        msg["To"] = ", ".join(to_addrs)
+        final_subject = subject or ensure_reply_subject(original.subject)
 
-        if cc_addrs:
-            msg["Cc"] = ", ".join(cc_addrs)
-
+        headers: Dict[str, str] = {}
         orig_mid = original.message_id
         if orig_mid:
-            msg["In-Reply-To"] = orig_mid
+            headers["In-Reply-To"] = orig_mid
             existing_refs = get_header(original.headers, "References")
-            msg["References"] = build_references(existing_refs, orig_mid)
+            headers["References"] = build_references(existing_refs, orig_mid)
+
+        if extra_headers:
+            headers.update(extra_headers)
 
         if quote_original:
-            quoted_text = quote_original_text(original)
-            text_body = body + "\n\n" + quoted_text if body else quoted_text
+            quoted_text = quote_original_reply_text(original)
+            text_body = text + "\n\n" + quoted_text if text else quoted_text
 
-            if body_html is not None:
-                quoted_html = quote_original_html(original)
-                html_body = body_html + "<br><br>" + quoted_html
+            if html is not None:
+                quoted_html = quote_original_reply_html(original)
+                html_body = html + "<br><br>" + quoted_html
             else:
                 html_body = None
         else:
-            text_body = body
-            html_body = body_html
+            text_body = text
+            html_body = html
 
-        self._set_body(msg, text_body, html_body)
+        msg = self.compose(
+            subject=final_subject,
+            to=to_addrs,
+            from_addr=from_addr,
+            cc=cc_addrs,
+            bcc=bcc_addrs,
+            text=text_body,
+            html=html_body,
+            attachments=attachments,
+            extra_headers=headers or None,
+        )
 
         return self.send(msg)
+
 
     def forward(
         self,
         original: EmailMessage,
         *,
         to: Sequence[str],
-        body: Optional[str] = None,
-        body_html: Optional[str] = None,
+        text: Optional[str] = None,
+        html: Optional[str] = None,
         from_addr: Optional[str] = None,
+        include_original: bool = False,
         include_attachments: bool = True,
+        cc: Optional[Sequence[str]] = None,
+        bcc: Optional[Sequence[str]] = None,
+        subject: Optional[str] = None,
+        attachments: Optional[Sequence[Attachment]] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> SendResult:
         """
         Forward an existing email.
-
-        - To: explicit `to`
-        - From: optional `from_addr`
-        - Subject: Fwd: <original subject> (added only once)
-        - Body (HTML): optional HTML version; if None but original has HTML,
-          we build a simple HTML block quoting the original.
-        - Attachments: optionally re-attached from the original message
         """
         if not to:
             raise ValueError("forward(): 'to' must contain at least one recipient")
-        msg = PyEmailMessage()
 
-        if from_addr:
-            msg["From"] = from_addr
+        text_parts: List[str] = []
+        if text:
+            text_parts.append(text)
+        if include_original:
+            text_parts.append(quote_forward_text(original))
+        text_body = "\n".join(text_parts)
 
-        msg["To"] = ", ".join(to)
-        msg["Subject"] = ensure_forward_subject(original.subject or "")
-
-        parts: List[str] = []
-
-        if body:
-            parts.append(body)
-
-        quoted_lines: List[str] = []
-        quoted_lines.append("")
-        quoted_lines.append("---- Forwarded message ----")
-        quoted_lines.append(f"From: {original.from_email}")
-        if original.to:
-            quoted_lines.append(f"To: {', '.join(original.to)}")
-        if original.cc:
-            quoted_lines.append(f"Cc: {', '.join(original.cc)}")
-        if original.date:
-            quoted_lines.append(f"Date: {original.date.isoformat()}")
-        if original.subject:
-            quoted_lines.append(f"Subject: {original.subject}")
-        quoted_lines.append("")
-        if original.text:
-            quoted_lines.append(original.text)
-
-        parts.append("\n".join(quoted_lines))
-        text_body = "\n".join(parts)
-
-        html_body: Optional[str] = body_html
-        if html_body is None and (original.html or original.text):
+        if html is not None:
+            html_body = html
+        else:
             html_parts: List[str] = []
+            if text:
+                html_parts.append(f"<p>{_html.escape(text)}</p>")
+            if include_original:
+                quoted_html = quote_forward_html(original)
+                if quoted_html is not None:
+                    html_parts.append(quoted_html)
+            html_body = "\n".join(html_parts) if html_parts else None
 
-            if body:
-                html_parts.append(f"<p>{_html.escape(body)}</p>")
+        # Subject default
+        final_subject = subject or ensure_forward_subject(original.subject or "")
 
-            html_parts.append("<hr>")
-            html_parts.append("<p>---- Forwarded message ----</p>")
-
-            header_lines: List[str] = []
-            header_lines.append(f"From: {original.from_email}")
-            if original.to:
-                header_lines.append(f"To: {', '.join(original.to)}")
-            if original.cc:
-                header_lines.append(f"Cc: {', '.join(original.cc)}")
-            if original.date:
-                header_lines.append(f"Date: {original.date.isoformat()}")
-            if original.subject:
-                header_lines.append(f"Subject: {original.subject}")
-
-            header_html = "<br>".join(_html.escape(line) for line in header_lines)
-            html_parts.append(f"<p>{header_html}</p>")
-
-            if original.html:
-                html_parts.append(original.html)
-            elif original.text:
-                html_parts.append("<pre>" + _html.escape(original.text) + "</pre>")
-
-            html_body = "\n".join(html_parts)
-
-        self._set_body(msg, text_body, html_body)
-
-
-        # Attachments (if your Attachment model supports this)
-
+        final_attachments = []
+        if attachments is not None:
+            final_attachments.extend(attachments)
         if include_attachments and original.attachments:
-            self._add_attachment(msg, original.attachments)
+            final_attachments.extend(original.attachments)
+
+        msg = self.compose(
+            subject=final_subject,
+            to=to,
+            from_addr=from_addr,
+            cc=cc or (),
+            bcc=bcc or (),
+            text=text_body,
+            html=html_body,
+            attachments=final_attachments,
+            extra_headers=extra_headers,
+        )
 
         return self.send(msg)
     
-    def imap_query(self, mailbox: str = "INBOX") -> EasyIMAPQuery:
-        return EasyIMAPQuery(self, mailbox=mailbox)
+    def imap_query(self, mailbox: str = "INBOX") -> EmailQuery:
+        return EmailQuery(self, mailbox=mailbox)
 
     def fetch_overview(
         self,
         *,
         mailbox: str = "INBOX",
         n: int = 50,
-        preview_bytes: int = 1024,
-    ) -> List[EmailMessage]:
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> tuple[PagedSearchResult, List[EmailOverview]]:
+        """
+        Fetch a page of EmailOverview objects with paging metadata.
+
+        - For the first (latest) page, call with refresh=True, before_uid=None.
+        - For next (older) pages, call with before_uid=prev_page.next_before_uid.
+        - For previous (newer) pages, call with after_uid=prev_page.prev_after_uid.
+        """
         q = self.imap_query(mailbox).limit(n)
-        return q.fetch_overview(preview_bytes=preview_bytes)
+        page, overviews = q.fetch_overview(
+            before_uid=before_uid,
+            after_uid=after_uid,
+            refresh=refresh,
+        )
+        return page, overviews
     
     def fetch_latest(
         self,
@@ -499,11 +527,28 @@ class EmailManager:
         n: int = 50,
         unseen_only: bool = False,
         include_attachments: bool = False,
-    ) -> List[EmailMessage]:
+        before_uid: Optional[int] = None,
+        after_uid: Optional[int] = None,
+        refresh: bool = False,
+    ) -> tuple[PagedSearchResult, List[EmailMessage]]:
+        """
+        Fetch a page of latest messages plus paging metadata.
+
+        - For the first (latest) page, call with refresh=True, before_uid=None.
+        - For next (older) pages, call with before_uid=prev_page.next_before_uid.
+        - For previous (newer) pages, call with after_uid=prev_page.prev_after_uid.
+        """
         q = self.imap_query(mailbox).limit(n)
         if unseen_only:
             q.query.unseen()
-        return q.fetch(include_attachments=include_attachments)
+
+        page, messages = q.fetch(
+            before_uid=before_uid,
+            after_uid=after_uid,
+            refresh=refresh,
+            include_attachments=include_attachments,
+        )
+        return page, messages
 
     def fetch_thread(
         self,
@@ -524,7 +569,7 @@ class EmailManager:
             .limit(200)
         )
 
-        msgs = q.fetch(include_attachments=include_attachments)
+        _, msgs = q.fetch(include_attachments=include_attachments)
 
         # Ensure root is present exactly once
         mid = root.message_id
@@ -550,14 +595,30 @@ class EmailManager:
 
     def mark_all_seen(self, mailbox: str = "INBOX", *, chunk_size: int = 500) -> int:
         total = 0
+
+        # Build a reusable EmailQuery for UNSEEN messages in this mailbox
+        q = self.imap_query(mailbox).limit(chunk_size)
+        q.query.unseen()
+
+        before_uid: Optional[int] = None
+        refresh = True  # do a real SEARCH once to build the cache
+
         while True:
-            q = self.imap_query(mailbox).limit(chunk_size)
-            q.query.unseen()
-            refs = q.search()
+            page = q.search(before_uid=before_uid, refresh=refresh)
+            refresh = False  # all further pages come from cache
+
+            refs = page.refs
             if not refs:
                 break
+
             self.add_flags(refs, {SEEN})
             total += len(refs)
+
+            if not page.has_next or page.next_before_uid is None:
+                break
+
+            before_uid = page.next_before_uid
+
         return total
 
     def mark_unseen(self, refs: Sequence[EmailRef]) -> None:

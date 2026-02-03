@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from email.message import EmailMessage as PyEmailMessage
 
 from email_management import EmailManager, EmailAssistant
+from email_management.imap.pagination import PagedSearchResult
 import email_management.llm.model as model_mod
 import email_management.email_assistant as assistants_mod
 from email_management.email_assistant import EmailAssistantProfile
@@ -17,6 +18,7 @@ class FakeEasyQuery:
         self.limits = []
         self.unseen_called = False
         self.fetch_calls = []
+        self.fetch_kwargs = []
 
     def limit(self, n: int):
         self.limits.append(n)
@@ -26,24 +28,52 @@ class FakeEasyQuery:
         self.unseen_called = True
         return self
 
-    def fetch(self, *, include_attachments: bool = False):
+    def fetch(
+        self,
+        *,
+        before_uid=None,
+        after_uid=None,
+        refresh: bool = False,
+        include_attachments: bool = False,
+        **_ignored,
+    ):
         self.fetch_calls.append(include_attachments)
+        self.fetch_kwargs.append(
+            {
+                "before_uid": before_uid,
+                "after_uid": after_uid,
+                "refresh": refresh,
+                "include_attachments": include_attachments,
+            }
+        )
 
         msg1 = EmailMessage(
-            ref=EmailRef(uid="1", mailbox="INBOX"),
+            ref=EmailRef(uid=1, mailbox="INBOX"),
             subject="First message",
             from_email="a@example.com",
             to=["me@example.com"],
             text="Body of first email",
         )
         msg2 = EmailMessage(
-            ref=EmailRef(uid="2", mailbox="INBOX"),
+            ref=EmailRef(uid=2, mailbox="INBOX"),
             subject="Second message",
             from_email="b@example.com",
             to=["me@example.com"],
             text="Body of second email",
         )
-        return [msg1, msg2]
+
+        page = PagedSearchResult(
+            refs=[msg2.ref, msg1.ref],   # newest-first is consistent with paging behavior
+            total=2,
+            has_next=False,
+            has_prev=False,
+            next_before_uid=None,
+            prev_after_uid=None,
+            newest_uid=2,
+            oldest_uid=1,
+        )
+
+        return page, [msg1, msg2]
 
 
 class FakeOutModel(BaseModel):
@@ -184,7 +214,7 @@ def _make_sample_messages():
 def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
     mgr, fake_easy = _make_mgr_with_fake_imap(monkeypatch)
 
-    msgs = mgr.fetch_latest(
+    page, msgs = mgr.fetch_latest(
         mailbox="INBOX",
         n=2,
         unseen_only=False,
@@ -195,7 +225,8 @@ def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
     assert len(msgs) == 2
     assert isinstance(msgs[0], EmailMessage)
 
-    # Ensure EasyIMAPQuery-style chaining happened
+    assert isinstance(page, PagedSearchResult)
+
     assert fake_easy.limits == [2]
     assert fake_easy.fetch_calls == [True]
 
@@ -205,7 +236,7 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
     assistant = EmailAssistant()
 
-    msgs = mgr.fetch_latest(
+    _, msgs = mgr.fetch_latest(
         mailbox="INBOX",
         n=2,
         unseen_only=False,
@@ -228,7 +259,7 @@ def test_summarize_single_email_uses_llm(monkeypatch):
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
     assistant = EmailAssistant()
 
-    msgs = mgr.fetch_latest(
+    _, msgs = mgr.fetch_latest(
         mailbox="INBOX",
         n=2,
         unseen_only=False,
@@ -250,7 +281,7 @@ def test_generate_reply_uses_llm(monkeypatch):
     mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
     assistant = EmailAssistant()
 
-    msgs = mgr.fetch_latest(
+    _, msgs = mgr.fetch_latest(
         mailbox="INBOX",
         n=2,
         unseen_only=False,
@@ -411,20 +442,17 @@ def test_generate_reply_includes_profile_prompt(monkeypatch):
 
 
 def test_search_emails_uses_llm(monkeypatch):
-    mgr, _ = _make_mgr_with_fake_imap(monkeypatch)
     fake_query = object()
 
     def fake_llm_easy_imap_query_from_nl(
         user_request,
         provider,
         model_name,
-        manager,
         mailbox,
     ):
         assert user_request == "find unread updates"
         assert provider == "fake-provider"
         assert model_name == "fake-model"
-        assert manager is mgr
         assert mailbox == "INBOX"
         return fake_query, {"model": model_name}
 
@@ -439,7 +467,6 @@ def test_search_emails_uses_llm(monkeypatch):
         "find unread updates",
         provider="fake-provider",
         model_name="fake-model",
-        manager=mgr,
         mailbox="INBOX",
     )
 

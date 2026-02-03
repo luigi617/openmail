@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from email_management.llm import get_model
-from email_management.email_query import EasyIMAPQuery
+from email_management.email_query import EmailQuery
 from email_management.imap import IMAPQuery
 
 if TYPE_CHECKING:
@@ -469,6 +469,23 @@ At the top level:
   Extra IMAP search tokens that apply to the entire search, after all clauses.
   Multiple tokens here are also combined with AND semantics.
 
+General-request handling (VERY IMPORTANT):
+
+- If the user's request is general or underspecified (e.g. "find emails about X",
+  "messages related to Y", "anything mentioning Z", without specifying subject-only
+  or sender/recipient constraints), you should prefer searching BOTH subject and
+  body by using `text` (headers OR body) and/or `body`, rather than `subject` alone.
+- When helpful, include common synonyms or closely related terms as OR alternatives
+  by using MULTIPLE CLAUSES (one per synonym/alternative), since lists within a
+  clause are ANDed.
+  Example:
+    - User: "emails about refunds"
+    - Clause 1: text=["refund"]
+    - Clause 2: text=["reimbursement"]
+    - Clause 3: text=["chargeback"]
+- Do NOT add synonyms if the user is already very specific (exact phrase, specific
+  sender, invoice number, etc.). Keep those plans minimal and precise.
+  
 Your task:
 
 1. Read the user's natural-language request describing which emails they want.
@@ -601,9 +618,9 @@ def _apply_imap_clauses(q: IMAPQuery, c: IMAPClauses) -> None:
         q.raw(*c.raw_tokens)
 
 
-def _apply_clause_to_easy(easy: EasyIMAPQuery, c: IMAPClauses) -> None:
+def _apply_clause_to_easy(easy: EmailQuery, c: IMAPClauses) -> None:
     """
-    Apply ONE clause to an EasyIMAPQuery:
+    Apply ONE clause to an EmailQuery:
     - First, clause-local high-level filters (newsletters, invoices/receipts, security alerts,
       with-attachments hint).
     - Then, low-level IMAPQuery primitives onto easy.query.
@@ -624,14 +641,14 @@ def _apply_clause_to_easy(easy: EasyIMAPQuery, c: IMAPClauses) -> None:
     _apply_imap_clauses(easy.query, c)
 
 
-def _apply_low_level_to_easy_query(easy: EasyIMAPQuery, low: IMAPLowLevelPlan) -> None:
+def _apply_low_level_to_easy_query(easy: EmailQuery, low: IMAPLowLevelPlan) -> None:
     """
-    Apply IMAPLowLevelPlan (DNF) onto an EasyIMAPQuery.
+    Apply IMAPLowLevelPlan (DNF) onto an EmailQuery.
 
     - If 0 clauses: do nothing.
     - If 1 clause: AND it directly into `easy` (helpers + low-level).
     - If N>=2 clauses:
-        * Build N sub-queries with separate EasyIMAPQuery instances.
+        * Build N sub-queries with separate EmailQuery instances.
         * Combine them with OR into the main easy.query via easy.query.or_(*subqueries).
     """
 
@@ -645,7 +662,7 @@ def _apply_low_level_to_easy_query(easy: EasyIMAPQuery, low: IMAPLowLevelPlan) -
         for clause in low.clauses:
             sub_q = IMAPQuery()
 
-            clause_easy = EasyIMAPQuery(None, "INBOX")
+            clause_easy = EmailQuery(None, "INBOX")
             clause_easy.query = sub_q
 
             _apply_clause_to_easy(clause_easy, clause)
@@ -662,11 +679,10 @@ def llm_easy_imap_query_from_nl(
     *,
     provider: str,
     model_name: str,
-    manager: Optional[EmailManager],
     mailbox: str = "INBOX",
-) -> Tuple[EasyIMAPQuery, Dict[str, Any]]:
+) -> Tuple[EmailQuery, Dict[str, Any]]:
     """
-    Use an LLM to translate a natural-language request into an EasyIMAPQuery,
+    Use an LLM to translate a natural-language request into an EmailQuery,
     where the final LLM output schema is IMAPLowLevelPlan (a list of DNF clauses).
     """
     chain = get_model(provider, model_name, IMAPLowLevelPlan)
@@ -674,8 +690,7 @@ def llm_easy_imap_query_from_nl(
         EMAIL_IMAP_QUERY_PROMPT.format(user_request=user_request)
     )
     plan = result
-
-    easy = manager.imap_query(mailbox)
+    easy = EmailQuery(manager=None, mailbox=mailbox)
     _apply_low_level_to_easy_query(easy, plan)
 
     return easy, llm_call_info
