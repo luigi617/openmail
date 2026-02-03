@@ -58,7 +58,10 @@ src = ["src"]
 # UP: pyupgrade (modern syntax)
 select = ["E", "F", "I", "B", "UP"]
 ignore = [
-  "E501",  # let black handle long lines
+  "E501",
+  "UP006", # don't force list[str] over List[str]
+  "UP007", # don't force X | Y over Union[X, Y] (optional)
+  "UP035", # typing.Any/typing.Optional modernizations etc (optional)
 ]
 
 [tool.ruff.lint.isort]
