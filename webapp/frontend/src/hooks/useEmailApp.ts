@@ -1,29 +1,29 @@
 // src/hooks/useEmailApp.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { EmailApi } from "../api/emailApi";
-import type { EmailRef } from "../types/shared";
-import type { MailboxData, EmailOverview, EmailMessage } from "../types/email";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { EmailApi } from '../api/emailApi';
+import type { EmailRef } from '../types/shared';
+import type { MailboxData, EmailOverview, EmailMessage } from '../types/email';
 import {
   buildColorMap,
   findAccountForEmail,
   getColorForEmail,
   getEmailId,
-} from "../utils/emailFormat";
+} from '../utils/emailFormat';
 
-const DEFAULT_MAILBOX = "INBOX";
+const DEFAULT_MAILBOX = 'INBOX';
 
 function parseAccountsParam(value: string | null): string[] {
   if (!value) return [];
   return value
-    .split(",")
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 }
 
 function toAccountsParam(accounts: string[]): string | null {
   const cleaned = (accounts || []).map((s) => String(s).trim()).filter(Boolean);
-  return cleaned.length ? cleaned.join(",") : null;
+  return cleaned.length ? cleaned.join(',') : null;
 }
 
 function sameArray(a: string[], b: string[]) {
@@ -33,28 +33,28 @@ function sameArray(a: string[], b: string[]) {
 }
 
 function mergeUniqueById(prev: EmailOverview[], next: EmailOverview[]) {
-    const seen = new Set<string>();
-    const out: EmailOverview[] = [];
+  const seen = new Set<string>();
+  const out: EmailOverview[] = [];
 
-    for (const e of prev) {
-      const id = getEmailId(e);
-      if (!id) continue;
-      if (!seen.has(id)) {
-        seen.add(id);
-        out.push(e);
-      }
+  for (const e of prev) {
+    const id = getEmailId(e);
+    if (!id) continue;
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(e);
     }
+  }
 
-    for (const e of next) {
-      const id = getEmailId(e);
-      if (!id) continue;
-      if (!seen.has(id)) {
-        seen.add(id);
-        out.push(e);
-      }
+  for (const e of next) {
+    const id = getEmailId(e);
+    if (!id) continue;
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(e);
     }
+  }
 
-    return out;
+  return out;
 }
 
 export function useEmailAppCore() {
@@ -63,14 +63,11 @@ export function useEmailAppCore() {
   // ----------------------------
   // router params: accounts + mailbox <-> state (loop-safe)
   // ----------------------------
-  const accountsParam = searchParams.get("accounts") ?? "";
-  const mailboxParam = searchParams.get("mailbox") ?? "";
-  const qParam = searchParams.get("q") ?? "";
+  const accountsParam = searchParams.get('accounts') ?? '';
+  const mailboxParam = searchParams.get('mailbox') ?? '';
+  const qParam = searchParams.get('q') ?? '';
 
-  const urlAccounts = useMemo(
-    () => parseAccountsParam(accountsParam),
-    [accountsParam]
-  );
+  const urlAccounts = useMemo(() => parseAccountsParam(accountsParam), [accountsParam]);
 
   const urlMailbox = useMemo(() => {
     const mb = mailboxParam.trim();
@@ -80,12 +77,12 @@ export function useEmailAppCore() {
   const urlQuery = useMemo(() => qParam.trim(), [qParam]);
 
   // Initialize state from URL once
-  const [filterAccounts, setFilterAccounts] = useState<string[]>(
-    () => parseAccountsParam(accountsParam)
+  const [filterAccounts, setFilterAccounts] = useState<string[]>(() =>
+    parseAccountsParam(accountsParam)
   );
 
-  const [currentMailbox, setCurrentMailbox] = useState<string>(
-    () => (mailboxParam.trim() ? mailboxParam.trim() : DEFAULT_MAILBOX)
+  const [currentMailbox, setCurrentMailbox] = useState<string>(() =>
+    mailboxParam.trim() ? mailboxParam.trim() : DEFAULT_MAILBOX
   );
 
   const [appliedSearchText, setAppliedSearchText] = useState<string>(() => urlQuery);
@@ -123,11 +120,9 @@ export function useEmailAppCore() {
       return;
     }
 
-    const encodedAccounts = toAccountsParam(filterAccounts) ?? "";
+    const encodedAccounts = toAccountsParam(filterAccounts) ?? '';
     const encodedMailbox =
-      currentMailbox && currentMailbox !== DEFAULT_MAILBOX
-        ? String(currentMailbox).trim()
-        : "";
+      currentMailbox && currentMailbox !== DEFAULT_MAILBOX ? String(currentMailbox).trim() : '';
 
     const encodedQ = appliedSearchText.trim();
 
@@ -136,23 +131,19 @@ export function useEmailAppCore() {
     const curQ = qParam;
 
     // If nothing changed, no-op
-    if (
-      encodedAccounts === curAccounts &&
-      encodedMailbox === curMailbox &&
-      encodedQ === curQ
-    )
+    if (encodedAccounts === curAccounts && encodedMailbox === curMailbox && encodedQ === curQ)
       return;
 
     const next = new URLSearchParams(searchParams);
 
-    if (encodedAccounts) next.set("accounts", encodedAccounts);
-    else next.delete("accounts");
+    if (encodedAccounts) next.set('accounts', encodedAccounts);
+    else next.delete('accounts');
 
-    if (encodedMailbox) next.set("mailbox", encodedMailbox);
-    else next.delete("mailbox");
+    if (encodedMailbox) next.set('mailbox', encodedMailbox);
+    else next.delete('mailbox');
 
-    if (encodedQ) next.set("q", encodedQ);
-    else next.delete("q");
+    if (encodedQ) next.set('q', encodedQ);
+    else next.delete('q');
 
     setSearchParams(next, { replace: true });
   }, [
@@ -179,23 +170,15 @@ export function useEmailAppCore() {
 
   // selection + detail
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedOverview, setSelectedOverview] = useState<EmailOverview | null>(
-    null
-  );
-  const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(
-    null
-  );
+  const [selectedOverview, setSelectedOverview] = useState<EmailOverview | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null);
 
   // errors (inline)
-  const [listError, setListError] = useState<string>("");
-  const [detailError, setDetailError] = useState<string>("");
+  const [listError, setListError] = useState<string>('');
+  const [detailError, setDetailError] = useState<string>('');
 
   // derived: color map (single source of truth)
-  const colorMap = useMemo(
-    () => buildColorMap(emails, mailboxData),
-    [emails, mailboxData]
-  );
-
+  const colorMap = useMemo(() => buildColorMap(emails, mailboxData), [emails, mailboxData]);
 
   const getSelectedRef = useCallback((): EmailRef | null => {
     const ov = selectedOverview;
@@ -216,22 +199,22 @@ export function useEmailAppCore() {
 
   const fetchMailboxes = useCallback(async () => {
     try {
-      setListError("");
+      setListError('');
       // backend returns: { [account: string]: string[] }
       const data = await EmailApi.getMailboxes();
       setMailboxData(data || {});
     } catch (e) {
-      console.error("Error fetching mailboxes:", e);
-      setListError("Failed to fetch mailboxes.");
+      console.error('Error fetching mailboxes:', e);
+      setListError('Failed to fetch mailboxes.');
     }
   }, []);
 
   const fetchOverview = useCallback(
-    async (direction: null | "next" = null) => {
+    async (direction: null | 'next' = null) => {
       try {
-        setListError("");
-        
-        if (direction === "next") {
+        setListError('');
+
+        if (direction === 'next') {
           if (isLoadingMore) return;
           if (!nextCursor) return;
           setIsLoadingMore(true);
@@ -240,25 +223,20 @@ export function useEmailAppCore() {
           setNextCursor(null);
         }
 
-        const useCursor = direction === "next" ? nextCursor ?? undefined : undefined;        
+        const useCursor = direction === 'next' ? (nextCursor ?? undefined) : undefined;
 
         const payload = await EmailApi.getOverview({
           mailbox: currentMailbox,
           limit: pageSize,
           search_query: appliedSearchText.trim() ? appliedSearchText.trim() : undefined,
           cursor: useCursor,
-          accounts: useCursor
-            ? undefined
-            : filterAccounts.length
-            ? [...filterAccounts]
-            : undefined,
+          accounts: useCursor ? undefined : filterAccounts.length ? [...filterAccounts] : undefined,
         });
-        
 
         const list = Array.isArray(payload.data) ? payload.data : [];
         const meta = payload.meta ?? {};
 
-        if (direction === "next") {
+        if (direction === 'next') {
           setEmails((prev) => mergeUniqueById(prev, list));
         } else {
           setEmails(list);
@@ -268,19 +246,18 @@ export function useEmailAppCore() {
         }
 
         // reset selection on new list
-        setDetailError("");
+        setDetailError('');
 
         setNextCursor(meta.next_cursor ?? null);
 
-        const total =
-          typeof meta.total_count === "number" ? meta.total_count : undefined;
-        if (typeof total === "number" && total >= 0) {
+        const total = typeof meta.total_count === 'number' ? meta.total_count : undefined;
+        if (typeof total === 'number' && total >= 0) {
           setTotalEmails(total);
         }
       } catch (e) {
-        console.error("Error fetching overview:", e);
-        if (direction !== "next") setEmails([]);
-        setListError("Failed to fetch emails.");
+        console.error('Error fetching overview:', e);
+        if (direction !== 'next') setEmails([]);
+        setListError('Failed to fetch emails.');
       } finally {
         setIsLoadingMore(false);
       }
@@ -304,7 +281,7 @@ export function useEmailAppCore() {
       }
 
       try {
-        setDetailError("");
+        setDetailError('');
         setSelectedMessage(null);
 
         const msg = await EmailApi.getEmail({
@@ -312,12 +289,11 @@ export function useEmailAppCore() {
           mailbox: String(mailbox),
           uid: uid,
         });
-        
 
         setSelectedMessage(msg);
       } catch (e) {
-        console.error("Error fetching email detail:", e);
-        setDetailError("Failed to load full email content.");
+        console.error('Error fetching email detail:', e);
+        setDetailError('Failed to load full email content.');
         setSelectedMessage(null);
       }
     },
@@ -328,9 +304,9 @@ export function useEmailAppCore() {
     void fetchMailboxes();
   }, [fetchMailboxes]);
 
-  const lastAppliedKey = useRef<string>("");
+  const lastAppliedKey = useRef<string>('');
   useEffect(() => {
-    const key = `${currentMailbox}::${toAccountsParam(filterAccounts) ?? ""}::${appliedSearchText}`;
+    const key = `${currentMailbox}::${toAccountsParam(filterAccounts) ?? ''}::${appliedSearchText}`;
     if (key === lastAppliedKey.current) return;
     lastAppliedKey.current = key;
 
@@ -348,18 +324,13 @@ export function useEmailAppCore() {
     [fetchEmailMessage]
   );
 
-  const legendAccounts = useMemo(
-    () => Object.keys(mailboxData || {}),
-    [mailboxData]
-  );
+  const legendAccounts = useMemo(() => Object.keys(mailboxData || {}), [mailboxData]);
 
   const helpers = useMemo(() => {
     return {
       getEmailId: (e: EmailOverview) => getEmailId(e),
-      findAccountForEmail: (e: EmailOverview) =>
-        findAccountForEmail(e, mailboxData),
-      getColorForEmail: (e: EmailOverview) =>
-        getColorForEmail(e, mailboxData, colorMap),
+      findAccountForEmail: (e: EmailOverview) => findAccountForEmail(e, mailboxData),
+      getColorForEmail: (e: EmailOverview) => getColorForEmail(e, mailboxData, colorMap),
     };
   }, [mailboxData, colorMap]);
 

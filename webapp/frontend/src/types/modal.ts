@@ -1,5 +1,5 @@
 // src/types/modal.ts
-export type AppModalButtonVariant = "primary" | "secondary";
+export type AppModalButtonVariant = 'primary' | 'secondary';
 
 export type AppModalButton = {
   id: number;

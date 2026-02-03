@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import type { Attachment } from "../../types/email";
-import DownloadIcon from "../../assets/svg/download.svg?react";
+import { useMemo } from 'react';
+import type { Attachment } from '../../types/email';
+import DownloadIcon from '../../assets/svg/download.svg?react';
 
 export type DetailAttachmentsProps = {
   attachments?: (Attachment | null | undefined)[] | null;
@@ -11,8 +11,8 @@ export type DetailAttachmentsProps = {
 };
 
 function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  const units = ["B", "KB", "MB", "GB", "TB"];
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
   let v = bytes;
   while (v >= 1024 && i < units.length - 1) {
@@ -24,7 +24,7 @@ function formatBytes(bytes: number): string {
 }
 
 function safeFilename(name: string) {
-  return name.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").trim() || "attachment";
+  return name.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').trim() || 'attachment';
 }
 
 function buildDownloadUrl(params: {
@@ -44,13 +44,13 @@ function buildDownloadUrl(params: {
     `/attachment`;
 
   const qs = new URLSearchParams();
-  qs.set("part", part);
-  qs.set("filename", filename);
-  qs.set("content_type", content_type);
+  qs.set('part', part);
+  qs.set('filename', filename);
+  qs.set('content_type', content_type);
 
   // Optional; backend does not require these
-  if (filename) qs.set("filename", safeFilename(filename));
-  if (content_type) qs.set("content_type", content_type);
+  if (filename) qs.set('filename', safeFilename(filename));
+  if (content_type) qs.set('content_type', content_type);
 
   return `${base}?${qs.toString()}`;
 }
@@ -60,10 +60,10 @@ function buildDownloadUrl(params: {
  * This avoids loading bytes into JS memory.
  */
 function triggerDownload(url: string) {
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
-  a.rel = "noopener";
-  a.style.display = "none";
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -72,11 +72,8 @@ function triggerDownload(url: string) {
 export default function DetailAttachments(props: DetailAttachmentsProps) {
   const attachments = useMemo(() => {
     const a = props.attachments ?? [];
-    return Array.isArray(a)
-      ? (a.filter(att => att && !att.is_inline) as Attachment[])
-      : [];
+    return Array.isArray(a) ? (a.filter((att) => att && !att.is_inline) as Attachment[]) : [];
   }, [props.attachments]);
-
 
   if (attachments.length === 0) return null;
 
@@ -87,7 +84,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
       <div className="detail-attachments-strip" role="list" aria-label="Attachments">
         {attachments.map((att, idx) => {
           const fullName = att.filename || `Attachment ${idx + 1}`;
-          const size = typeof att.size === "number" ? formatBytes(att.size) : "";
+          const size = typeof att.size === 'number' ? formatBytes(att.size) : '';
 
           // IMPORTANT: use IMAP part from meta
           const part = (att as any).part as string | undefined;
@@ -103,7 +100,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
                 filename: att.filename,
                 content_type: att.content_type,
               })
-            : "";
+            : '';
 
           const onActivate = () => {
             if (!canDownload) return;
@@ -113,7 +110,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
           return (
             <div
               key={(att as any).idx ?? `${fullName}-${idx}`}
-              className={`attachment-card ${canDownload ? "" : "is-disabled"}`}
+              className={`attachment-card ${canDownload ? '' : 'is-disabled'}`}
               role="listitem"
               title={fullName}
               tabIndex={canDownload ? 0 : -1}
@@ -121,7 +118,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
               onClick={onActivate}
               onKeyDown={(e) => {
                 if (!canDownload) return;
-                if (e.key === "Enter" || e.key === " ") {
+                if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   onActivate();
                 }
@@ -131,9 +128,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
                 <div className="attachment-card-name" title={fullName}>
                   {fullName}
                 </div>
-                <div className="attachment-card-size detail-line small">
-                  {size || " "}
-                </div>
+                <div className="attachment-card-size detail-line small">{size || ' '}</div>
               </div>
 
               {/* Use a normal link so right-click "Save link as" works */}

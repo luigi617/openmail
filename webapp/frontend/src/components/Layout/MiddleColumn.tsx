@@ -1,7 +1,7 @@
-import EmailsHeader from "../Middle/EmailsHeader";
-import EmailList from "../Middle/EmailList";
-import type { EmailOverview } from "../../types/email";
-import { useEffect, useRef, useCallback } from "react";
+import EmailsHeader from '../Middle/EmailsHeader';
+import EmailList from '../Middle/EmailList';
+import type { EmailOverview } from '../../types/email';
+import { useEffect, useRef, useCallback } from 'react';
 
 export type MiddleColumnProps = {
   hasMore: boolean;
@@ -21,8 +21,8 @@ export type MiddleColumnProps = {
 };
 
 export default function MiddleColumn(props: MiddleColumnProps) {
-  const listRef = useRef<HTMLDivElement | null>(null);      // <-- scroll container (.email-list)
-  const sentinelRef = useRef<HTMLDivElement | null>(null);  // <-- bottom sentinel
+  const listRef = useRef<HTMLDivElement | null>(null); // <-- scroll container (.email-list)
+  const sentinelRef = useRef<HTMLDivElement | null>(null); // <-- bottom sentinel
 
   const maybeLoadMore = useCallback(() => {
     if (!props.hasMore) return;
@@ -44,9 +44,9 @@ export default function MiddleColumn(props: MiddleColumnProps) {
         }
       },
       {
-        root: rootEl,           // IMPORTANT: observe within the scrolling email list
+        root: rootEl, // IMPORTANT: observe within the scrolling email list
         threshold: 0,
-        rootMargin: "200px",    // prefetch a bit before hitting the absolute bottom
+        rootMargin: '200px', // prefetch a bit before hitting the absolute bottom
       }
     );
 

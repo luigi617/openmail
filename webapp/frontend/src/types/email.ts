@@ -1,5 +1,5 @@
 // src/types/email.ts
-import type { EmailRef } from "./shared";
+import type { EmailRef } from './shared';
 
 export type MailboxStatus = {
   messages?: number;

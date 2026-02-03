@@ -1,12 +1,11 @@
 // src/hooks/useComposerResize.ts
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 export function useComposerResize(enabled: boolean) {
   const composerRef = useRef<HTMLDivElement | null>(null);
   const zoneRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-
     const composerEl = composerRef.current;
     const zoneEl = zoneRef.current;
     if (!composerEl) return;
@@ -33,9 +32,9 @@ export function useComposerResize(enabled: boolean) {
     const onUp = () => {
       if (!isResizing) return;
       isResizing = false;
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      document.removeEventListener("pointercancel", onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
     };
 
     const onDown = (e: PointerEvent) => {
@@ -52,9 +51,9 @@ export function useComposerResize(enabled: boolean) {
       startWidth = rect.width;
       startHeight = rect.height;
 
-      document.addEventListener("pointermove", onMove);
-      document.addEventListener("pointerup", onUp);
-      document.addEventListener("pointercancel", onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     };
 
     // When disabled (minimized), stop resizing and clear inline sizing so
@@ -63,20 +62,20 @@ export function useComposerResize(enabled: boolean) {
       // stop any in-progress drag
       onUp();
       // clear inline styles applied by resizing
-      composerEl.style.width = "";
-      composerEl.style.height = "";
+      composerEl.style.width = '';
+      composerEl.style.height = '';
       return;
     }
 
     if (!zoneEl) return;
-    zoneEl.addEventListener("pointerdown", onDown);
+    zoneEl.addEventListener('pointerdown', onDown);
 
     return () => {
       onUp();
-      zoneEl?.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      document.removeEventListener("pointercancel", onUp);
+      zoneEl?.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
     };
   }, [enabled]);
 

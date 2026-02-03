@@ -1,31 +1,37 @@
 // src/hooks/useComposer.ts
-import DOMPurify from "dompurify";
-import { useCallback, useMemo, useState } from "react";
-import { EmailApi } from "../api/emailApi";
-import type { ComposerExtraFieldKey, ComposerMode, ComposerState } from "../types/composer";
-import type { Priority } from "../types/shared";
-import type { MailboxData, EmailOverview, EmailMessage } from "../types/email";
-import type { EmailRef } from "../types/shared";
-import { buildForwardedOriginalBodyHtml, buildQuotedOriginalBodyHtml } from "../utils/messageBuilders";
-import { formatAddress, formatAddressList } from "../utils/emailFormat";
+import DOMPurify from 'dompurify';
+import { useCallback, useMemo, useState } from 'react';
+import { EmailApi } from '../api/emailApi';
+import type { ComposerExtraFieldKey, ComposerMode, ComposerState } from '../types/composer';
+import type { Priority } from '../types/shared';
+import type { MailboxData, EmailOverview, EmailMessage } from '../types/email';
+import type { EmailRef } from '../types/shared';
+import {
+  buildForwardedOriginalBodyHtml,
+  buildQuotedOriginalBodyHtml,
+} from '../utils/messageBuilders';
+import { formatAddress, formatAddressList } from '../utils/emailFormat';
 
 function sanitizeForComposer(html: string) {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
-    FORBID_TAGS: ["style", "script", "link", "meta", "base", "iframe", "object", "embed"],
-    FORBID_ATTR: ["onload","onclick","onerror","onmouseover","onfocus","onsubmit"],
+    FORBID_TAGS: ['style', 'script', 'link', 'meta', 'base', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: ['onload', 'onclick', 'onerror', 'onmouseover', 'onfocus', 'onsubmit'],
   });
 }
 
 function splitRawList(raw: string): string[] {
-  return (raw || "")
+  return (raw || '')
     .split(/[;,]/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
 
 function stripHtmlToText(html: string): string {
-  return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function guessDraftsMailbox(mailboxes?: string[]): string | undefined {
@@ -33,13 +39,7 @@ function guessDraftsMailbox(mailboxes?: string[]): string | undefined {
   const lower = mailboxes.map((m) => ({ m, l: m.toLowerCase() }));
 
   // common variants
-  const candidates = [
-    "drafts",
-    "draft",
-    "[gmail]/drafts",
-    "inbox/drafts",
-    "inbox.drafts",
-  ];
+  const candidates = ['drafts', 'draft', '[gmail]/drafts', 'inbox/drafts', 'inbox.drafts'];
 
   for (const c of candidates) {
     const hit = lower.find((x) => x.l === c);
@@ -47,14 +47,14 @@ function guessDraftsMailbox(mailboxes?: string[]): string | undefined {
   }
 
   // contains "draft"
-  const contains = lower.find((x) => x.l.includes("draft"));
+  const contains = lower.find((x) => x.l.includes('draft'));
   return contains?.m;
 }
 
 // make sure that to, cc, bcc is considered in hasContentNow
 function getAddressDraft(fieldId: string): string {
   const el = document.getElementById(fieldId) as HTMLInputElement | null;
-  return (el?.value || "").trim();
+  return (el?.value || '').trim();
 }
 
 function mergeUniqueCaseInsensitive(a: string[], b: string[]): string[] {
@@ -62,7 +62,7 @@ function mergeUniqueCaseInsensitive(a: string[], b: string[]): string[] {
   const out: string[] = [];
 
   for (const item of [...a, ...b]) {
-    const v = (item || "").trim();
+    const v = (item || '').trim();
     if (!v) continue;
     const key = v.toLowerCase();
     if (seen.has(key)) continue;
@@ -72,7 +72,6 @@ function mergeUniqueCaseInsensitive(a: string[], b: string[]): string[] {
 
   return out;
 }
-
 
 export function useComposer(args: {
   mailboxData: MailboxData; // account -> mailboxes
@@ -85,30 +84,30 @@ export function useComposer(args: {
   const [state, setState] = useState<ComposerState>(() => ({
     open: false,
     minimized: false,
-    mode: "compose",
+    mode: 'compose',
     extra: { cc: false, bcc: false, replyto: false, priority: false },
     to: [],
     cc: [],
     bcc: [],
-    subject: "",
-    replyToRaw: "",
-    priority: "medium",
-    fromAccount: "",
-    text: "",
-    html: "",
+    subject: '',
+    replyToRaw: '',
+    priority: 'medium',
+    fromAccount: '',
+    text: '',
+    html: '',
     attachments: [],
-    error: "",
+    error: '',
   }));
 
   const accounts = useMemo(() => Object.keys(args.mailboxData || {}), [args.mailboxData]);
 
   const hasContentNow = useCallback(() => {
-    const bodyText = stripHtmlToText(state.html || "");
+    const bodyText = stripHtmlToText(state.html || '');
 
-    const toDraft = getAddressDraft("composer-to");
-    const ccDraft = getAddressDraft("composer-cc");
-    const bccDraft = getAddressDraft("composer-bcc");
-    
+    const toDraft = getAddressDraft('composer-to');
+    const ccDraft = getAddressDraft('composer-cc');
+    const bccDraft = getAddressDraft('composer-bcc');
+
     return (
       state.to.length > 0 ||
       state.cc.length > 0 ||
@@ -127,24 +126,24 @@ export function useComposer(args: {
     setState((s) => ({
       ...s,
       minimized: false,
-      mode: "compose",
+      mode: 'compose',
       extra: { cc: false, bcc: false, replyto: false, priority: false },
       to: [],
       cc: [],
       bcc: [],
-      subject: "",
-      replyToRaw: "",
-      priority: "medium",
-      fromAccount: "",
-      text: "",
-      html: "",
+      subject: '',
+      replyToRaw: '',
+      priority: 'medium',
+      fromAccount: '',
+      text: '',
+      html: '',
       attachments: [],
-      error: "",
+      error: '',
     }));
   }, []);
 
   const close = useCallback(() => {
-    setState((s) => ({ ...s, open: false, minimized: false, error: "" }));
+    setState((s) => ({ ...s, open: false, minimized: false, error: '' }));
   }, []);
 
   const requestClose = useCallback(() => {
@@ -159,7 +158,7 @@ export function useComposer(args: {
     args.showCloseConfirm({
       onSaveDraft: async () => {
         const ok = await saveDraft();
-        
+
         if (ok) {
           reset();
           close();
@@ -176,7 +175,10 @@ export function useComposer(args: {
     setState((s) => ({ ...s, extra: { ...s.extra, [k]: !s.extra[k] } }));
   }, []);
 
-  const setFromAccount = useCallback((v: string) => setState((s) => ({ ...s, fromAccount: v })), []);
+  const setFromAccount = useCallback(
+    (v: string) => setState((s) => ({ ...s, fromAccount: v })),
+    []
+  );
   const setPriority = useCallback((v: Priority) => setState((s) => ({ ...s, priority: v })), []);
   const setReplyToRaw = useCallback((v: string) => setState((s) => ({ ...s, replyToRaw: v })), []);
   const setSubject = useCallback((v: string) => setState((s) => ({ ...s, subject: v })), []);
@@ -202,51 +204,59 @@ export function useComposer(args: {
     (mode: ComposerMode) => {
       const ov = args.selectedOverview;
       const msg = args.selectedMessage;
-      const originalSubj = msg?.subject || ov?.subject || "";
+      const originalSubj = msg?.subject || ov?.subject || '';
 
       // default From
-      let defaultFrom = "";
-      if (mode === "reply" || mode === "reply_all" || mode === "forward") {
-        defaultFrom = args.getSelectedRef()?.account ?? "";
+      let defaultFrom = '';
+      if (mode === 'reply' || mode === 'reply_all' || mode === 'forward') {
+        defaultFrom = args.getSelectedRef()?.account ?? '';
       } else {
-        defaultFrom = accounts[0] ?? "";
+        defaultFrom = accounts[0] ?? '';
       }
 
-      let subject = "";
-      let toStr = "";
-      let html = "";
+      let subject = '';
+      let toStr = '';
+      let html = '';
 
-      if (mode === "compose") {
-        subject = "";
-        toStr = "";
-        html = "";
-      } else if (mode === "reply") {
+      if (mode === 'compose') {
+        subject = '';
+        toStr = '';
+        html = '';
+      } else if (mode === 'reply') {
         const fromObj = msg?.from_email || ov?.from_email;
         if (fromObj) toStr = formatAddress(fromObj);
 
-        subject = originalSubj.toLowerCase().startsWith("re:") ? originalSubj : originalSubj ? `Re: ${originalSubj}` : "";
+        subject = originalSubj.toLowerCase().startsWith('re:')
+          ? originalSubj
+          : originalSubj
+            ? `Re: ${originalSubj}`
+            : '';
         const rawQuote = buildQuotedOriginalBodyHtml(ov, msg);
-        html = "\n" + sanitizeForComposer(rawQuote);
-      } else if (mode === "reply_all") {
+        html = '\n' + sanitizeForComposer(rawQuote);
+      } else if (mode === 'reply_all') {
         const fromObj = msg?.from_email || ov?.from_email;
         const toList = msg?.to || ov?.to || [];
         const ccList = msg?.cc || [];
 
-        const allRecipients = [
-          ...(fromObj ? [fromObj] : []),
-          ...toList,
-          ...ccList,
-        ];
+        const allRecipients = [...(fromObj ? [fromObj] : []), ...toList, ...ccList];
 
         toStr = formatAddressList(allRecipients);
 
-        subject = originalSubj.toLowerCase().startsWith("re:") ? originalSubj : originalSubj ? `Re: ${originalSubj}` : "";
+        subject = originalSubj.toLowerCase().startsWith('re:')
+          ? originalSubj
+          : originalSubj
+            ? `Re: ${originalSubj}`
+            : '';
         const rawQuote = buildQuotedOriginalBodyHtml(ov, msg);
-        html = "\n" + sanitizeForComposer(rawQuote);
-      } else if (mode === "forward") {
-        subject = originalSubj.toLowerCase().startsWith("fwd:") ? originalSubj : originalSubj ? `Fwd: ${originalSubj}` : "";
+        html = '\n' + sanitizeForComposer(rawQuote);
+      } else if (mode === 'forward') {
+        subject = originalSubj.toLowerCase().startsWith('fwd:')
+          ? originalSubj
+          : originalSubj
+            ? `Fwd: ${originalSubj}`
+            : '';
         const rawFwd = buildForwardedOriginalBodyHtml(ov, msg);
-        html = "\n" + sanitizeForComposer(rawFwd);
+        html = '\n' + sanitizeForComposer(rawFwd);
       }
 
       const to = splitRawList(toStr);
@@ -256,7 +266,7 @@ export function useComposer(args: {
         open: true,
         minimized: false,
         mode,
-        error: "",
+        error: '',
         attachments: [],
 
         extra: { cc: false, bcc: false, replyto: false, priority: false },
@@ -265,8 +275,8 @@ export function useComposer(args: {
         cc: [],
         bcc: [],
         subject,
-        replyToRaw: "",
-        priority: "medium",
+        replyToRaw: '',
+        priority: 'medium',
         fromAccount: defaultFrom,
         html,
       }));
@@ -279,17 +289,17 @@ export function useComposer(args: {
   }, []);
 
   const send = useCallback(async () => {
-    setError("");
+    setError('');
 
     const mode = state.mode;
     const fromAccount = state.fromAccount;
     const subject = state.subject;
 
-    const toDraft = splitRawList(getAddressDraft("composer-to"));
-    const ccDraft = splitRawList(getAddressDraft("composer-cc"));
-    const bccDraft = splitRawList(getAddressDraft("composer-bcc"));
+    const toDraft = splitRawList(getAddressDraft('composer-to'));
+    const ccDraft = splitRawList(getAddressDraft('composer-cc'));
+    const bccDraft = splitRawList(getAddressDraft('composer-bcc'));
 
-    const toList = mergeUniqueCaseInsensitive(state.to, toDraft);    
+    const toList = mergeUniqueCaseInsensitive(state.to, toDraft);
     const ccList = mergeUniqueCaseInsensitive(state.cc, ccDraft);
     const bccList = mergeUniqueCaseInsensitive(state.bcc, bccDraft);
 
@@ -297,30 +307,30 @@ export function useComposer(args: {
     const priority = state.priority; // always set
     const attachments = state.attachments;
 
-    const html = (state.html || "").trim();
+    const html = (state.html || '').trim();
     const text = stripHtmlToText(html);
 
     if (!fromAccount) {
-      setError("Please select a From account.");
+      setError('Please select a From account.');
       return;
     }
 
-    if ((mode === "compose" || mode === "forward") && !toList.length) {
-      setError("Please specify at least one recipient.");
+    if ((mode === 'compose' || mode === 'forward') && !toList.length) {
+      setError('Please specify at least one recipient.');
       return;
     }
 
     let ref: EmailRef | null = null;
-    if (mode !== "compose") {
+    if (mode !== 'compose') {
       ref = args.getSelectedRef();
       if (!ref) {
-        setError("No email selected to reply or forward.");
+        setError('No email selected to reply or forward.');
         return;
       }
     }
 
     try {
-      if (mode === "compose") {
+      if (mode === 'compose') {
         await EmailApi.sendEmail({
           account: fromAccount,
           subject,
@@ -334,7 +344,7 @@ export function useComposer(args: {
           priority,
           attachments,
         });
-      } else if (mode === "reply") {
+      } else if (mode === 'reply') {
         await EmailApi.replyEmail({
           ...ref!,
           text: text,
@@ -349,7 +359,7 @@ export function useComposer(args: {
           priority,
           attachments,
         });
-      } else if (mode === "reply_all") {
+      } else if (mode === 'reply_all') {
         await EmailApi.replyAllEmail({
           ...ref!,
           text: text,
@@ -364,7 +374,7 @@ export function useComposer(args: {
           priority,
           attachments,
         });
-      } else if (mode === "forward") {
+      } else if (mode === 'forward') {
         await EmailApi.forwardEmail({
           ...ref!,
           to: toList,
@@ -381,49 +391,48 @@ export function useComposer(args: {
           attachments,
         });
       } else {
-        setError("Unknown composer mode.");
+        setError('Unknown composer mode.');
         return;
       }
 
       reset();
       close();
     } catch (e) {
-      console.error("Error sending:", e);
-      setError("Failed to send message. Please try again.");
+      console.error('Error sending:', e);
+      setError('Failed to send message. Please try again.');
     }
   }, [state, args.getSelectedRef, reset, close, setError]);
 
   const saveDraft = useCallback(async (): Promise<boolean> => {
-    setError("");
+    setError('');
 
     const fromAccount = state.fromAccount;
     if (!fromAccount) {
-      setError("Please select a From account before saving a draft.");
+      setError('Please select a From account before saving a draft.');
       return false;
     }
 
-    const toDraft = splitRawList(getAddressDraft("composer-to"));
-    const ccDraft = splitRawList(getAddressDraft("composer-cc"));
-    const bccDraft = splitRawList(getAddressDraft("composer-bcc"));
+    const toDraft = splitRawList(getAddressDraft('composer-to'));
+    const ccDraft = splitRawList(getAddressDraft('composer-cc'));
+    const bccDraft = splitRawList(getAddressDraft('composer-bcc'));
 
     const subject = state.subject;
 
     const toList = mergeUniqueCaseInsensitive(state.to, toDraft);
-    
+
     const ccList = mergeUniqueCaseInsensitive(state.cc, ccDraft);
     const bccList = mergeUniqueCaseInsensitive(state.bcc, bccDraft);
 
     const replyToList = splitRawList(state.replyToRaw);
     const priority = state.priority;
 
-    const html = (state.html || "").trim();
+    const html = (state.html || '').trim();
     const text = stripHtmlToText(html);
 
     const attachments = state.attachments;
 
     const draftsMailbox =
-      guessDraftsMailbox(Object.keys(args.mailboxData[fromAccount])) ??
-      "Drafts";
+      guessDraftsMailbox(Object.keys(args.mailboxData[fromAccount])) ?? 'Drafts';
 
     try {
       await EmailApi.saveDraft({
@@ -442,8 +451,8 @@ export function useComposer(args: {
       });
       return true;
     } catch (e) {
-      console.error("Error saving draft:", e);
-      setError("Failed to save draft. Please try again.");
+      console.error('Error saving draft:', e);
+      setError('Failed to save draft. Please try again.');
       return false;
     }
   }, [state, args.mailboxData, setError]);

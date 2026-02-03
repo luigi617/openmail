@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef } from "react";
-import DOMPurify from "dompurify";
-import type { Attachment } from "../../types/email";
-import DetailAttachments from "./DetailAttachments";
+import { useEffect, useMemo, useRef } from 'react';
+import DOMPurify from 'dompurify';
+import type { Attachment } from '../../types/email';
+import DetailAttachments from './DetailAttachments';
 
 /**
  * Basic HTML -> text fallback
  */
 function htmlToText(html: string) {
-  const div = document.createElement("div");
+  const div = document.createElement('div');
   div.innerHTML = html;
-  div.querySelectorAll("script,style,noscript").forEach((n) => n.remove());
-  return (div.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  div.querySelectorAll('script,style,noscript').forEach((n) => n.remove());
+  return (div.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export type DetailBodyProps = {
@@ -35,37 +35,37 @@ function sanitizeEmailHtml(html: string) {
     USE_PROFILES: { html: true },
 
     FORBID_TAGS: [
-      "script",
-      "style", // remove this if you want to allow email-provided <style>
-      "noscript",
-      "iframe",
-      "object",
-      "embed",
-      "base",
-      "meta",
-      "link",
-      "form",
-      "input",
-      "button",
-      "textarea",
-      "select",
+      'script',
+      'style', // remove this if you want to allow email-provided <style>
+      'noscript',
+      'iframe',
+      'object',
+      'embed',
+      'base',
+      'meta',
+      'link',
+      'form',
+      'input',
+      'button',
+      'textarea',
+      'select',
     ],
 
     FORBID_ATTR: [
       // common event handlers
-      "onload",
-      "onclick",
-      "onerror",
-      "onmouseover",
-      "onfocus",
-      "onsubmit",
-      "onmouseenter",
-      "onmouseleave",
-      "onkeydown",
-      "onkeyup",
-      "onkeypress",
-      "oninput",
-      "onchange",
+      'onload',
+      'onclick',
+      'onerror',
+      'onmouseover',
+      'onfocus',
+      'onsubmit',
+      'onmouseenter',
+      'onmouseleave',
+      'onkeydown',
+      'onkeyup',
+      'onkeypress',
+      'oninput',
+      'onchange',
     ],
 
     // Optional hardening knobs:
@@ -87,13 +87,13 @@ function EmailShadowBody({ html }: { html: string }) {
     const host = hostRef.current;
     if (!host) return;
 
-    const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
 
     // Clear existing content
     while (shadow.firstChild) shadow.removeChild(shadow.firstChild);
 
     // Base styles inside ShadowRoot for consistent rendering
-    const style = document.createElement("style");
+    const style = document.createElement('style');
     style.textContent = `
       :host { display: block; }
 
@@ -148,37 +148,36 @@ function EmailShadowBody({ html }: { html: string }) {
       }
     `;
 
-    const root = document.createElement("div");
-    root.className = "email-root";
+    const root = document.createElement('div');
+    root.className = 'email-root';
     root.innerHTML = safeHtml;
 
     shadow.appendChild(style);
     shadow.appendChild(root);
 
     // Harden links (in shadow root)
-    shadow.querySelectorAll("a[href]").forEach((a) => {
-      a.setAttribute("target", "_blank");
-      a.setAttribute("rel", "noopener noreferrer");
+    shadow.querySelectorAll('a[href]').forEach((a) => {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
     });
 
     // Optional: prevent mixed-content images from breaking layout
     // and ensure images trigger layout changes naturally (no need for resize hacks).
     // If you want to add placeholders, you can handle it here.
-
   }, [safeHtml]);
 
   return <div ref={hostRef} />;
 }
 
 export default function DetailBody(props: DetailBodyProps) {
-  const html = props.html ?? "";
-  const text = props.text ?? "";
+  const html = props.html ?? '';
+  const text = props.text ?? '';
   const hasHtml = html.trim().length > 0;
 
   const derivedText = useMemo(() => {
     if (text.trim().length) return text;
     if (hasHtml) return htmlToText(html);
-    return "";
+    return '';
   }, [text, hasHtml, html]);
 
   const attachments = props.attachments ?? [];
@@ -206,7 +205,7 @@ export default function DetailBody(props: DetailBodyProps) {
     );
   }
 
-  const safeText = derivedText.trim().length ? derivedText : "";
+  const safeText = derivedText.trim().length ? derivedText : '';
   return (
     <div className="detail-body-block">
       <pre className="detail-body text">{safeText}</pre>

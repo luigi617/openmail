@@ -6,7 +6,7 @@ export type EmailRef = {
   mailbox: string;
 };
 
-export type Priority = "high" | "medium" | "low";
+export type Priority = 'high' | 'medium' | 'low';
 
 export type ApiErrorPayload = {
   message?: string;

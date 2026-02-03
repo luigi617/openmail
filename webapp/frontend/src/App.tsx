@@ -1,14 +1,13 @@
 // src/App.tsx
-import { useMemo, useState } from "react";
-import Layout from "./components/Layout/Layout";
-import Composer from "./components/Composer/Composer";
-import AppAlertModal from "./components/Modal/AppAlertModal";
+import { useMemo, useState } from 'react';
+import Layout from './components/Layout/Layout';
+import Composer from './components/Composer/Composer';
+import AppAlertModal from './components/Modal/AppAlertModal';
 
-import { useEmailAppCore } from "./hooks/useEmailApp";
-import { useAppModal } from "./hooks/useAppModal";
-import { useComposer } from "./hooks/useComposer";
-import { useDetailActions } from "./hooks/useDetailActions";
-
+import { useEmailAppCore } from './hooks/useEmailApp';
+import { useAppModal } from './hooks/useAppModal';
+import { useComposer } from './hooks/useComposer';
+import { useDetailActions } from './hooks/useDetailActions';
 
 export default function App() {
   const core = useEmailAppCore();
@@ -32,13 +31,13 @@ export default function App() {
     getSelectedRef: core.getSelectedRef,
     showCloseConfirm: ({ onSaveDraft, onDiscard }) => {
       modal.show({
-        title: "Close message?",
-        message: "You have unsent changes. Do you want to save this message as a draft?",
+        title: 'Close message?',
+        message: 'You have unsent changes. Do you want to save this message as a draft?',
         buttons: [
           {
             id: 1,
-            label: "Save draft",
-            variant: "primary",
+            label: 'Save draft',
+            variant: 'primary',
             onClick: async () => {
               await onSaveDraft();
               modal.close();
@@ -46,8 +45,8 @@ export default function App() {
           },
           {
             id: 2,
-            label: "Discard",
-            variant: "secondary",
+            label: 'Discard',
+            variant: 'secondary',
             onClick: () => {
               onDiscard();
               modal.close();
@@ -55,8 +54,8 @@ export default function App() {
           },
           {
             id: 3,
-            label: "Cancel",
-            variant: "secondary",
+            label: 'Cancel',
+            variant: 'secondary',
             onClick: () => modal.close(),
           },
         ],
@@ -65,27 +64,27 @@ export default function App() {
   });
 
   const composerTitle = useMemo(() => {
-    if (!composer.state.open) return "";
+    if (!composer.state.open) return '';
     switch (composer.state.mode) {
-      case "compose":
-        return "New message";
-      case "reply":
-        return "Reply";
-      case "reply_all":
-        return "Reply all";
-      case "forward":
-        return "Forward";
+      case 'compose':
+        return 'New message';
+      case 'reply':
+        return 'Reply';
+      case 'reply_all':
+        return 'Reply all';
+      case 'forward':
+        return 'Forward';
       default:
-        return "Message";
+        return 'Message';
     }
   }, [composer.state.open, composer.state.mode]);
 
   const loadMore = () => {
     if (!core.nextCursor) return;
     if (core.isLoadingMore) return;
-    void core.fetchOverview("next");
+    void core.fetchOverview('next');
   };
-  
+
   return (
     <>
       <Layout
@@ -98,7 +97,7 @@ export default function App() {
           filterAccounts: core.filterAccounts,
 
           onSelectAllInboxes: () => {
-            core.setCurrentMailbox("INBOX");
+            core.setCurrentMailbox('INBOX');
             core.setFilterAccounts([]);
           },
           onSelectMailbox: (account: string, mailbox: string) => {
@@ -111,7 +110,7 @@ export default function App() {
 
           onToggleLegendAccount: (acc: string) => {
             core.setFilterAccounts([acc]);
-            core.setCurrentMailbox("INBOX")
+            core.setCurrentMailbox('INBOX');
           },
         }}
         middle={{
@@ -123,7 +122,7 @@ export default function App() {
           onCompose: () => {
             setComposerExtraMenuOpen(false);
             setSendLaterOpen(false);
-            composer.open("compose");
+            composer.open('compose');
           },
 
           emails: core.emails,
@@ -151,17 +150,17 @@ export default function App() {
           onReply: () => {
             setComposerExtraMenuOpen(false);
             setSendLaterOpen(false);
-            composer.open("reply");
+            composer.open('reply');
           },
           onReplyAll: () => {
             setComposerExtraMenuOpen(false);
             setSendLaterOpen(false);
-            composer.open("reply_all");
+            composer.open('reply_all');
           },
           onForward: () => {
             setComposerExtraMenuOpen(false);
             setSendLaterOpen(false);
-            composer.open("forward");
+            composer.open('forward');
           },
           onMove: (destinationMailbox: string) => detailActions.moveSelected(destinationMailbox),
         }}
@@ -210,9 +209,9 @@ export default function App() {
         onSendLaterPick={(label) => {
           setSendLaterOpen(false);
           modal.show({
-            title: "Send later",
+            title: 'Send later',
             message: `"Send later" (${label}) is not wired to the backend yet.`,
-            buttons: [{ id: 1, label: "OK", variant: "primary", onClick: () => modal.close() }],
+            buttons: [{ id: 1, label: 'OK', variant: 'primary', onClick: () => modal.close() }],
           });
         }}
       />

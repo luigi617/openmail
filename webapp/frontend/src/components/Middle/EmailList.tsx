@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { EmailOverview } from "../../types/email";
-import { formatDate } from "../../utils/emailFormat";
+import { useState } from 'react';
+import type { EmailOverview } from '../../types/email';
+import { formatDate } from '../../utils/emailFormat';
 
 export type EmailListProps = {
   emails: EmailOverview[];
@@ -18,18 +18,18 @@ export type EmailListProps = {
 };
 
 function stableFallbackKey(email: EmailOverview, index: number) {
-  const a = email.ref.account ?? "";
-  const m = email.ref.mailbox ?? "";
-  const u = email.ref.uid ?? "";
+  const a = email.ref.account ?? '';
+  const m = email.ref.mailbox ?? '';
+  const u = email.ref.uid ?? '';
   const raw = `${a}:${m}:${String(u)}`;
-  return raw !== "::" ? raw : `row-${index}`;
+  return raw !== '::' ? raw : `row-${index}`;
 }
 
 function isSeenFromFlags(flags: unknown): boolean {
   if (!Array.isArray(flags)) return false;
   return flags.some((f) => {
     const s = String(f).toLowerCase();
-    return s.includes("seen") || s === "read" || s.includes("\\seen");
+    return s.includes('seen') || s === 'read' || s.includes('\\seen');
   });
 }
 
@@ -54,17 +54,14 @@ export default function EmailList(props: EmailListProps) {
         const isUnread = !isSeen;
 
         const color = props.getColorForEmail(email);
-        const fromAddr =
-          email.from_email?.name || email.from_email?.email || "(unknown sender)";
+        const fromAddr = email.from_email?.name || email.from_email?.email || '(unknown sender)';
         const dateStr = formatDate(email.received_at);
-        const subj = email.subject || "(no subject)";
+        const subj = email.subject || '(no subject)';
 
         return (
           <div
             key={key}
-            className={`email-card ${isSelected ? "selected" : ""} ${
-              isUnread ? "unread" : "read"
-            }`}
+            className={`email-card ${isSelected ? 'selected' : ''} ${isUnread ? 'unread' : 'read'}`}
             onClick={() => {
               setUiSeenKeys((prev) => {
                 if (prev.has(key)) return prev;
@@ -79,7 +76,7 @@ export default function EmailList(props: EmailListProps) {
             tabIndex={0}
             aria-selected={isSelected}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              if (e.key === 'Enter' || e.key === ' ') {
                 setUiSeenKeys((prev) => {
                   if (prev.has(key)) return prev;
                   const next = new Set(prev);
@@ -102,11 +99,16 @@ export default function EmailList(props: EmailListProps) {
         );
       })}
 
-      <div className={`empty-state ${props.emptyList ? "" : "hidden"}`}>
+      <div className={`empty-state ${props.emptyList ? '' : 'hidden'}`}>
         No emails match the current filters.
       </div>
 
-      <div ref={(el) => {props.sentinelRef.current = el}} style={{ height: 1 }} />
+      <div
+        ref={(el) => {
+          props.sentinelRef.current = el;
+        }}
+        style={{ height: 1 }}
+      />
     </div>
   );
 }

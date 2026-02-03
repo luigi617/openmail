@@ -9,17 +9,17 @@
    ========================================================= */
 :root {
   /* window + columns */
-  --bg: #d3d6db;             /* window background */
+  --bg: #d3d6db; /* window background */
   --sidebar-bg-top: #f4f1ea;
   --sidebar-bg-bottom: #e4e5ea;
   --middle-bg: #f5f5f7;
   --detail-bg: #ffffff;
 
   /* surfaces / states */
-  --surface: #ffffff;        /* raised panels (composer, modal, menus) */
-  --surface-2: #f5f5f7;      /* subtle section backgrounds */
-  --surface-3: #f9fafb;      /* header/input-like surfaces */
-  --hover: #e5e5ea;          /* hover fill */
+  --surface: #ffffff; /* raised panels (composer, modal, menus) */
+  --surface-2: #f5f5f7; /* subtle section backgrounds */
+  --surface-3: #f9fafb; /* header/input-like surfaces */
+  --hover: #e5e5ea; /* hover fill */
   --hover-2: rgba(255, 255, 255, 0.55); /* sidebar hover */
 
   /* borders */
@@ -32,7 +32,7 @@
   --text-muted: #6b7280;
 
   /* accents */
-  --accent: #0a84ff;         /* macOS blue */
+  --accent: #0a84ff; /* macOS blue */
   --accent-soft: #d6e6ff;
 
   /* inputs */
@@ -108,7 +108,6 @@
   --email-read-opacity: 0.78;
 }
 
-
 /* =========================================================
    SYSTEM DARK THEME (no user selection needed)
    ========================================================= */
@@ -178,7 +177,12 @@
    ========================================================= */
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   background: var(--bg);
   color: var(--text-main);
 }
@@ -199,8 +203,8 @@ main.layout {
   main.layout {
     grid-template-columns: 240px minmax(0, 1fr);
     grid-template-areas:
-      "sidebar middle"
-      "sidebar detail";
+      'sidebar middle'
+      'sidebar detail';
   }
   .sidebar {
     grid-area: sidebar;
@@ -217,9 +221,9 @@ main.layout {
   main.layout {
     grid-template-columns: 1fr;
     grid-template-areas:
-      "sidebar"
-      "middle"
-      "detail";
+      'sidebar'
+      'middle'
+      'detail';
   }
 }
 
@@ -343,8 +347,8 @@ main.layout {
 }
 
 /* Base inputs ----------------------------------------------------- */
-input[type="text"],
-input[type="email"],
+input[type='text'],
+input[type='email'],
 select,
 textarea {
   width: 100%;
@@ -501,7 +505,6 @@ button.primary:hover {
   background: rgba(0, 0, 0, 0.14);
 }
 
-
 /* Legend ---------------------------------------------------------- */
 .legend-box {
   position: relative;
@@ -527,7 +530,7 @@ button.primary:hover {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.20rem 0.45rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 12px;
   font-size: 0.78rem;
 }
@@ -591,7 +594,6 @@ button.primary:hover {
 .list-header-right .list-count {
   opacity: 0.9;
 }
-
 
 .list-container {
   border-radius: 0;
@@ -711,7 +713,7 @@ button.primary:hover {
   white-space: normal;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;         /* show max 2 lines */
+  -webkit-line-clamp: 2; /* show max 2 lines */
   -webkit-box-orient: vertical;
   min-height: calc(2 * 1.25em);
   word-break: break-word;
@@ -898,13 +900,19 @@ button.secondary.small {
 }
 
 .detail-body.text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
   white-space: pre-wrap;
 }
 
 .detail-body.html {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   white-space: normal;
 }
 
@@ -1056,7 +1064,7 @@ button.secondary.small {
   background: var(--hover);
 }
 
-.composer-extra-item input[type="checkbox"] {
+.composer-extra-item input[type='checkbox'] {
   cursor: pointer;
 }
 
@@ -1168,7 +1176,7 @@ button.secondary.small {
 }
 
 /* default inline field */
-.composer-row input[type="text"],
+.composer-row input[type='text'],
 .composer-row select {
   flex: 1;
   border: none;
@@ -1179,7 +1187,7 @@ button.secondary.small {
   color: var(--text-main);
 }
 
-.composer-row input[type="text"]:focus,
+.composer-row input[type='text']:focus,
 .composer-row select:focus {
   outline: none;
   border-bottom-color: var(--accent);
@@ -1207,7 +1215,7 @@ button.secondary.small {
   gap: 0.25rem;
 }
 
-.composer-address-wrapper input[type="text"] {
+.composer-address-wrapper input[type='text'] {
   flex: 1;
   min-width: 120px;
   border-bottom: none !important;
@@ -1261,8 +1269,8 @@ button.secondary.small {
   font: inherit;
   padding: 4px 0;
   box-sizing: border-box;
-  white-space: pre-wrap;     /* keep line breaks */
-  overflow-y: auto;          /* scroll if long */
+  white-space: pre-wrap; /* keep line breaks */
+  overflow-y: auto; /* scroll if long */
   color: var(--text-main);
 }
 
@@ -1299,11 +1307,11 @@ button.secondary.small {
 }
 
 .quoted-original p {
-  margin: 0;             /* Prevent extra spacing between HTML paragraphs */
+  margin: 0; /* Prevent extra spacing between HTML paragraphs */
 }
 
 .quoted-original pre {
-  margin: 0;             /* Avoid spacing from <pre> blocks */
+  margin: 0; /* Avoid spacing from <pre> blocks */
 }
 
 /* remove native button chrome inside attachment pills */
@@ -1551,7 +1559,10 @@ button.secondary.small {
 
   cursor: pointer;
   scroll-snap-align: start;
-  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+  transition:
+    transform 0.08s ease,
+    background 0.08s ease,
+    border-color 0.08s ease;
   color: var(--text-main);
 }
 

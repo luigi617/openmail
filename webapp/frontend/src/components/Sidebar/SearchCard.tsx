@@ -1,6 +1,6 @@
 // src/components/Sidebar/SearchCard.tsx
-import SearchIcon from "@/assets/svg/search.svg?react";
-import { useState } from "react";
+import SearchIcon from '@/assets/svg/search.svg?react';
+import { useState } from 'react';
 
 type Props = {
   searchQuery: string;
@@ -9,19 +9,19 @@ type Props = {
 
 export default function SearchCard(props: Props) {
   const [value, setValue] = useState(props.searchQuery);
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.value;
     setValue(next);
 
     // If cleared, immediately search empty
-    if (next.trim() === "") {
-      props.onSearch("");
+    if (next.trim() === '') {
+      props.onSearch('');
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       props.onSearch(value);
     }
   };

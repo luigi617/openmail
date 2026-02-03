@@ -21,11 +21,8 @@ export default function EmailsHeader(props: EmailsHeaderProps) {
             Compose
           </button>
           {showCount ? (
-            <span className="list-count">
-              {totalEmails.toLocaleString()} total
-            </span>
+            <span className="list-count">{totalEmails.toLocaleString()} total</span>
           ) : null}
-
         </div>
       </div>
     </section>

@@ -1,5 +1,5 @@
 // src/types/api.ts
-import type { Priority } from "./shared";
+import type { Priority } from './shared';
 
 export type OverviewParams = {
   mailbox?: string;

@@ -1,5 +1,5 @@
 // src/components/Composer/AddressChipsInput.tsx
-import { useRef, useState } from "react";
+import { useRef, useState } from 'react';
 
 type Props = {
   fieldId: string; // used for id attribute (composer-to, etc.)
@@ -16,21 +16,15 @@ function splitAddresses(raw: string): string[] {
     .filter(Boolean);
 }
 
-export function AddressChipsInput({
-  fieldId,
-  placeholder,
-  value,
-  onChange,
-  className,
-}: Props) {
-  const [draft, setDraft] = useState("");
+export function AddressChipsInput({ fieldId, placeholder, value, onChange, className }: Props) {
+  const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   function commit() {
     const parts = splitAddresses(draft);
     if (!parts.length) return;
     onChange([...value, ...parts]);
-    setDraft("");
+    setDraft('');
   }
 
   function removeAt(idx: number) {
@@ -40,7 +34,7 @@ export function AddressChipsInput({
   }
 
   return (
-    <div className="composer-address-wrapper" data-field={fieldId.replace("composer-", "")}>
+    <div className="composer-address-wrapper" data-field={fieldId.replace('composer-', '')}>
       <div className="composer-address-pills">
         {value.map((addr, idx) => (
           <span
@@ -71,10 +65,10 @@ export function AddressChipsInput({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === ";" || e.key === ",") {
+          if (e.key === 'Enter' || e.key === ';' || e.key === ',') {
             e.preventDefault();
             commit();
-          } else if (e.key === "Backspace" && !draft) {
+          } else if (e.key === 'Backspace' && !draft) {
             if (value.length) onChange(value.slice(0, -1));
           }
         }}

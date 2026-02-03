@@ -1,12 +1,12 @@
 // src/hooks/useAppModal.ts
-import { useCallback, useState } from "react";
-import type { AppModalButton, AppModalState } from "../types/modal";
+import { useCallback, useState } from 'react';
+import type { AppModalButton, AppModalState } from '../types/modal';
 
 export function useAppModal() {
   const [modal, setModal] = useState<AppModalState>({
     open: false,
-    title: "Notice",
-    message: "",
+    title: 'Notice',
+    message: '',
     buttons: [],
   });
 
@@ -16,16 +16,16 @@ export function useAppModal() {
 
   const show = useCallback(
     (args: { title?: string; message?: string; buttons?: AppModalButton[] } | string) => {
-      const cfg = typeof args === "string" ? { message: args } : args;
+      const cfg = typeof args === 'string' ? { message: args } : args;
 
       setModal({
         open: true,
-        title: cfg.title ?? "Notice",
-        message: cfg.message ?? "",
+        title: cfg.title ?? 'Notice',
+        message: cfg.message ?? '',
         buttons:
           cfg.buttons && cfg.buttons.length
             ? cfg.buttons
-            : [{ id: 1, label: "OK", variant: "primary", onClick: close }],
+            : [{ id: 1, label: 'OK', variant: 'primary', onClick: close }],
       });
     },
     [close]
@@ -37,18 +37,18 @@ export function useAppModal() {
       message?: string;
       confirmLabel?: string;
       cancelLabel?: string;
-      confirmVariant?: "primary" | "secondary";
-      cancelVariant?: "primary" | "secondary";
+      confirmVariant?: 'primary' | 'secondary';
+      cancelVariant?: 'primary' | 'secondary';
     }) => {
       return new Promise<boolean>((resolve) => {
         show({
-          title: args.title ?? "Confirm",
-          message: args.message ?? "",
+          title: args.title ?? 'Confirm',
+          message: args.message ?? '',
           buttons: [
             {
               id: 1,
-              label: args.cancelLabel ?? "Cancel",
-              variant: args.cancelVariant ?? "secondary",
+              label: args.cancelLabel ?? 'Cancel',
+              variant: args.cancelVariant ?? 'secondary',
               onClick: () => {
                 close();
                 resolve(false);
@@ -56,8 +56,8 @@ export function useAppModal() {
             },
             {
               id: 2,
-              label: args.confirmLabel ?? "OK",
-              variant: args.confirmVariant ?? "primary",
+              label: args.confirmLabel ?? 'OK',
+              variant: args.confirmVariant ?? 'primary',
               onClick: () => {
                 close();
                 resolve(true);

@@ -1,11 +1,10 @@
 // src/types/composer.ts
 
-import type { Priority } from "./shared";
+import type { Priority } from './shared';
 
-export type ComposerMode = "compose" | "reply" | "reply_all" | "forward";
+export type ComposerMode = 'compose' | 'reply' | 'reply_all' | 'forward';
 
-export type ComposerExtraFieldKey = "cc" | "bcc" | "replyto" | "priority";
-
+export type ComposerExtraFieldKey = 'cc' | 'bcc' | 'replyto' | 'priority';
 
 export type ComposerState = {
   open: boolean;

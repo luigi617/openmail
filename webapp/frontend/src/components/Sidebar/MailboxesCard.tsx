@@ -1,6 +1,6 @@
 // src/components/Sidebar/MailboxesCard.tsx
-import MailboxTree from "./MailboxTree";
-import type { MailboxData } from "../../types/email";
+import MailboxTree from './MailboxTree';
+import type { MailboxData } from '../../types/email';
 
 export type MailboxesCardProps = {
   mailboxData: MailboxData;

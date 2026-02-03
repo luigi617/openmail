@@ -1,5 +1,5 @@
 // src/components/Composer/ComposerAttachments.tsx
-import CloseIcon from "@/assets/svg/close.svg?react";
+import CloseIcon from '@/assets/svg/close.svg?react';
 
 export type ComposerAttachmentsProps = {
   files: File[];
@@ -10,7 +10,7 @@ export type ComposerAttachmentsProps = {
 
 export default function ComposerAttachments(props: ComposerAttachmentsProps) {
   return (
-    <div className={`composer-attachments ${props.visible ? "" : "hidden"}`}>
+    <div className={`composer-attachments ${props.visible ? '' : 'hidden'}`}>
       {props.files.map((f, idx) => (
         <div key={`${f.name}-${idx}`} className="attachment-pill" role="group">
           <button

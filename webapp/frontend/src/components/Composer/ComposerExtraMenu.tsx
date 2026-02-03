@@ -1,7 +1,7 @@
 // src/components/Composer/ComposerExtraMenu.tsx
-import { useRef } from "react";
-import { useClickOutside } from "../../hooks/useClickOutside";
-import type { ComposerExtraFieldKey } from "../../types/composer";
+import { useRef } from 'react';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import type { ComposerExtraFieldKey } from '../../types/composer';
 
 export type ComposerExtraMenuProps = {
   open: boolean;
@@ -20,22 +20,30 @@ export default function ComposerExtraMenu(props: ComposerExtraMenuProps) {
   return (
     <div ref={menuRef} id="composer-extra-menu" className="composer-extra-menu">
       <label className="composer-extra-item">
-        <input type="checkbox" checked={!!props.state.cc} onChange={() => props.onToggle("cc")} />
+        <input type="checkbox" checked={!!props.state.cc} onChange={() => props.onToggle('cc')} />
         Cc
       </label>
 
       <label className="composer-extra-item">
-        <input type="checkbox" checked={!!props.state.bcc} onChange={() => props.onToggle("bcc")} />
+        <input type="checkbox" checked={!!props.state.bcc} onChange={() => props.onToggle('bcc')} />
         Bcc
       </label>
 
       <label className="composer-extra-item">
-        <input type="checkbox" checked={!!props.state.replyto} onChange={() => props.onToggle("replyto")} />
+        <input
+          type="checkbox"
+          checked={!!props.state.replyto}
+          onChange={() => props.onToggle('replyto')}
+        />
         Reply-To
       </label>
 
       <label className="composer-extra-item">
-        <input type="checkbox" checked={!!props.state.priority} onChange={() => props.onToggle("priority")} />
+        <input
+          type="checkbox"
+          checked={!!props.state.priority}
+          onChange={() => props.onToggle('priority')}
+        />
         Priority
       </label>
     </div>

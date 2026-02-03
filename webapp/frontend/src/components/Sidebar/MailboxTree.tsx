@@ -1,7 +1,7 @@
 // src/components/Sidebar/MailboxTree.tsx
-import { useMemo, useState } from "react";
-import type { MailboxData } from "../../types/email";
-import { getMailboxDisplayName } from "../../utils/emailFormat";
+import { useMemo, useState } from 'react';
+import type { MailboxData } from '../../types/email';
+import { getMailboxDisplayName } from '../../utils/emailFormat';
 
 export type MailboxTreeProps = {
   mailboxData: MailboxData;
@@ -14,23 +14,17 @@ export type MailboxTreeProps = {
 export default function MailboxTree(props: MailboxTreeProps) {
   const [collapsedAccounts, setCollapsedAccounts] = useState<Record<string, boolean>>({});
 
-  const entries = useMemo(
-    () => Object.entries(props.mailboxData || {}),
-    [props.mailboxData]
-  );
+  const entries = useMemo(() => Object.entries(props.mailboxData || {}), [props.mailboxData]);
 
-  const activeAccounts = useMemo(
-    () => new Set(props.filterAccounts || []),
-    [props.filterAccounts]
-  );
+  const activeAccounts = useMemo(() => new Set(props.filterAccounts || []), [props.filterAccounts]);
 
-   const allInboxesUnseen = useMemo(() => {
+  const allInboxesUnseen = useMemo(() => {
     const data = props.mailboxData || {};
     const accounts = Object.keys(data);
 
     return accounts.reduce((sum, account) => {
       const mailboxesObj = (data as any)[account] || {};
-      const inboxStatus = mailboxesObj["INBOX"];
+      const inboxStatus = mailboxesObj['INBOX'];
       const unseen = Number(inboxStatus?.unseen ?? 0);
       return sum + unseen;
     }, 0);
@@ -42,7 +36,7 @@ export default function MailboxTree(props: MailboxTreeProps) {
       <div className="mailbox-group">
         <div
           className={`mailbox-item mailbox-item-all ${
-            !activeAccounts.size && props.currentMailbox === "INBOX" ? "active" : ""
+            !activeAccounts.size && props.currentMailbox === 'INBOX' ? 'active' : ''
           }`}
           data-mailbox="INBOX"
           data-account=""
@@ -50,7 +44,7 @@ export default function MailboxTree(props: MailboxTreeProps) {
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") props.onSelectAllInboxes();
+            if (e.key === 'Enter' || e.key === ' ') props.onSelectAllInboxes();
           }}
         >
           <span className="mailbox-dot" />
@@ -78,8 +72,8 @@ export default function MailboxTree(props: MailboxTreeProps) {
               messages: Number((status as any)?.messages ?? 0),
             }))
             .sort((a, b) => {
-              if (a.name === "INBOX" && b.name !== "INBOX") return -1;
-              if (b.name === "INBOX" && a.name !== "INBOX") return 1;
+              if (a.name === 'INBOX' && b.name !== 'INBOX') return -1;
+              if (b.name === 'INBOX' && a.name !== 'INBOX') return 1;
               return a.name.localeCompare(b.name);
             });
 
@@ -87,16 +81,14 @@ export default function MailboxTree(props: MailboxTreeProps) {
             <div key={account} className="mailbox-group">
               <button
                 type="button"
-                className={`mailbox-account ${isCollapsed ? "collapsed" : ""}`}
-                onClick={() =>
-                  setCollapsedAccounts((s) => ({ ...s, [account]: !s[account] }))
-                }
+                className={`mailbox-account ${isCollapsed ? 'collapsed' : ''}`}
+                onClick={() => setCollapsedAccounts((s) => ({ ...s, [account]: !s[account] }))}
               >
                 <span className="mailbox-account-chev">▾</span>
                 <span>{account}</span>
               </button>
 
-              <div className={`mailbox-group-items ${isCollapsed ? "collapsed" : ""}`}>
+              <div className={`mailbox-group-items ${isCollapsed ? 'collapsed' : ''}`}>
                 {mailboxItems.map(({ name, unseen }) => {
                   // Old rule: when no filterAccounts, only “All inboxes” is active
                   const isActive =
@@ -107,14 +99,14 @@ export default function MailboxTree(props: MailboxTreeProps) {
                   return (
                     <div
                       key={`${account}:${name}`}
-                      className={`mailbox-item ${isActive ? "active" : ""}`}
+                      className={`mailbox-item ${isActive ? 'active' : ''}`}
                       data-mailbox={name}
                       data-account={account}
                       onClick={() => props.onSelectMailbox(account, name)}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ")
+                        if (e.key === 'Enter' || e.key === ' ')
                           props.onSelectMailbox(account, name);
                       }}
                     >

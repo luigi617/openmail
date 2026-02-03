@@ -1,5 +1,5 @@
 // src/hooks/useClickOutside.ts
-import { useEffect, type RefObject } from "react";
+import { useEffect, type RefObject } from 'react';
 
 export function useClickOutside(
   refs: ReadonlyArray<RefObject<HTMLElement | null>>,
@@ -21,9 +21,9 @@ export function useClickOutside(
       if (!inside) onOutside();
     };
 
-    document.addEventListener("pointerdown", handler, { capture: true });
+    document.addEventListener('pointerdown', handler, { capture: true });
     return () => {
-      document.removeEventListener("pointerdown", handler, { capture: true } as any);
+      document.removeEventListener('pointerdown', handler, { capture: true } as any);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, onOutside]);

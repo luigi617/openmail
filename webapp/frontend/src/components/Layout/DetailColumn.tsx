@@ -1,10 +1,10 @@
 // src/components/Layout/DetailColumn.tsx
-import { useMemo, useState, useEffect } from "react";
-import type { EmailMessage, EmailOverview, MailboxData } from "../../types/email"
-import { getMailboxDisplayName } from "../../utils/emailFormat";
-import { getDetailHeader } from "../../utils/detailFormat";
-import DetailBody from "../Detail/DetailBody";
-import DetailToolbar from "../Detail/DetailToolbar";
+import { useMemo, useState, useEffect } from 'react';
+import type { EmailMessage, EmailOverview, MailboxData } from '../../types/email';
+import { getMailboxDisplayName } from '../../utils/emailFormat';
+import { getDetailHeader } from '../../utils/detailFormat';
+import DetailBody from '../Detail/DetailBody';
+import DetailToolbar from '../Detail/DetailToolbar';
 
 export type DetailColumnProps = {
   selectedOverview: EmailOverview | null;
@@ -74,11 +74,10 @@ export default function DetailColumn(props: DetailColumnProps) {
     if (!ov) return [];
     const account = ov.ref.account;
     if (!account) return [];
-    return Object.keys(props.mailboxData[account] ?? [])
+    return Object.keys(props.mailboxData[account] ?? []);
   }, [props.selectedOverview, props.mailboxData]);
 
   const [destinationMailbox, setDestinationMailbox] = useState<string>(() => props.currentMailbox);
-
 
   // keep destination in sync when mailbox changes or selection changes
   useEffect(() => {
@@ -115,7 +114,7 @@ export default function DetailColumn(props: DetailColumnProps) {
             onToggleMove={() => setMoveOpen((v) => !v)}
           />
 
-          <div id="detail-error" className={`inline-error ${props.detailError ? "" : "hidden"}`}>
+          <div id="detail-error" className={`inline-error ${props.detailError ? '' : 'hidden'}`}>
             {props.detailError}
           </div>
 
