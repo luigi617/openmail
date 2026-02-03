@@ -1,27 +1,29 @@
+# main.py
+import asyncio
 import io
 import mimetypes
 import os
-from typing import Dict, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote
-from starlette.middleware.gzip import GZipMiddleware
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response, UploadFile
 from fastapi import Form, File
-from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-
+from starlette.middleware.gzip import GZipMiddleware
 
 from email_management import EmailManager
-from email_management.types import EmailRef
 from email_management.models import EmailMessage
+from email_management.types import EmailRef
 
-from email_service import parse_accounts
-from utils import uploadfiles_to_attachments, build_extra_headers, safe_filename
 from email_overview import build_email_overview
+from email_service import parse_accounts
 from ttl_cache import TTLCache
+from utils import build_extra_headers, safe_filename, uploadfiles_to_attachments
 
 
 BASE = Path(__file__).parent
@@ -30,6 +32,29 @@ app = FastAPI()
 
 load_dotenv(override=True)
 
+# ---------------------------
+# Threading / blocking-IO setup
+# ---------------------------
+MAX_WORKERS = int(os.getenv("THREADPOOL_WORKERS", "20"))
+EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+
+
+@app.on_event("shutdown")
+def _shutdown_executor() -> None:
+    EXECUTOR.shutdown(wait=False)
+
+
+async def run_blocking(fn, *args, **kwargs):
+    """
+    Run blocking IO in a bounded thread pool so the event loop remains responsive.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(EXECUTOR, lambda: fn(*args, **kwargs))
+
+
+# ---------------------------
+# Middleware
+# ---------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -43,105 +68,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# ---------------------------
+# Accounts + caches
+# ---------------------------
 ACCOUNTS: Dict[str, EmailManager] = parse_accounts(os.getenv("ACCOUNTS", ""))
 
 _MAILBOX_CACHE = TTLCache(ttl_seconds=60, maxsize=64)
 _MESSAGE_CACHE = TTLCache(ttl_seconds=600, maxsize=512)
 
 
-def _emails_equal(a: dict, b: dict) -> bool:
-    """
-    Compare two email overview dicts for identity using stable keys.
-    We compare the full dict as returned (data entries), but you can tighten
-    this to only compare refs (account+uid) if desired.
-    """
-    return a == b
-
-
-def _ref_key(item: dict) -> Tuple[str, int]:
-    """
-    Stable unique key for an email item. Assumes:
-      item["ref"]["account"] exists (we setdefault this in build_email_overview)
-      item["ref"]["uid"] exists (or is None)
-    """
-    ref = item.get("ref") or {}
-    acc = ref.get("account") or ""
-    uid = ref.get("uid")
-    # uid should be int; if missing, normalize to -1 so it still sorts/compares stably
-    return (str(acc), int(uid) if uid is not None else -1)
-
-@app.get("/api/test/overview")
-def test_email_overview() -> dict:
-    """
-    Test overview pagination consistency.
-
-    - Call build_email_overview 3x with limit=50 using cursor chaining to collect 150 newest
-    - Call build_email_overview 1x with limit=150 (first page)
-    - Compare whether the 150 items match (by stable ref keys and optionally by full payload)
-
-    Notes:
-    - This test assumes your paging logic is consistent across different limits.
-    - Because results can change between calls (new mail arriving), it's best run in a quiet mailbox.
-    """
-    mailbox = "INBOX"
-    search_query = None
-    search_mode = ""
-    l = 10
-    l_times = 50
-    # --------- Fetch 150 via 3 pages of 50 ---------
-    pages: List[dict] = []
-    cursor: Optional[str] = None
-    collected: List[dict] = []
-
-    for i in range(l_times):
-        resp = build_email_overview(
-            mailbox=mailbox,
-            limit=l,
-            search_query=search_query,
-            search_mode=search_mode,
-            cursor=cursor,
-            ACCOUNTS=ACCOUNTS,
-        )
-        pages.append(resp)
-
-        data = resp["data"]
-        collected.extend(data)
-
-        cursor = (resp.get("meta") or {}).get("next_cursor")
-
-        # Stop early if there's no next page or we got fewer than 50 (not enough emails)
-        if not cursor or len(data) < l:
-            break
-
-
-    # --------- Fetch 150 via single call ---------
-    resp_1 = build_email_overview(
-        mailbox=mailbox,
-        limit=l*l_times,
-        search_query=search_query,
-        search_mode=search_mode,
-        cursor=None,
-        ACCOUNTS=ACCOUNTS,
-    )
-    single_1 = resp_1["data"]
-
-    collected_keys = [_ref_key(x) for x in collected]
-    single_keys = [_ref_key(x) for x in single_1]
-
-    same_by_keys = collected_keys == single_keys
-    same_by_full_payload = _emails_equal(collected, single_1)
-
-    
-
-    return {
-        "ok": same_by_keys and (len(collected) == len(single_1) == l*l_times),
-        "same_by_keys": same_by_keys,
-        "same_by_full_payload": same_by_full_payload,
-    }
-
-
+# ---------------------------
+# Overview
+# ---------------------------
 @app.get("/api/emails/overview")
-def get_email_overview(
+async def get_email_overview(
     mailbox: str = "INBOX",
     limit: int = 50,
     search_query: Optional[str] = Query(
@@ -157,7 +99,6 @@ def get_email_overview(
         default=None,
         description="Opaque pagination cursor.",
     ),
-    # Optional; can be omitted to use all accounts.
     accounts: Optional[List[str]] = Query(
         default=None,
         description="Optional list of account IDs. If omitted, all accounts are used.",
@@ -165,9 +106,10 @@ def get_email_overview(
 ) -> dict:
     """
     Multi-account email overview with per-account pagination.
+    build_email_overview is typically blocking (IMAP) -> run in bounded threadpool.
     """
-
-    return build_email_overview(
+    return await run_blocking(
+        build_email_overview,
         mailbox=mailbox,
         limit=limit,
         search_query=search_query,
@@ -177,10 +119,16 @@ def get_email_overview(
         ACCOUNTS=ACCOUNTS,
     )
 
+
+# ---------------------------
+# Mailboxes (parallelized per account + mailbox)
+# ---------------------------
 @app.get("/api/emails/mailbox")
-def get_email_mailbox(background_tasks: BackgroundTasks) -> Dict[str, Dict[str, Dict[str, int]]]:
+async def get_email_mailbox(
+    background_tasks: BackgroundTasks,
+) -> Dict[str, Dict[str, Dict[str, int]]]:
     """
-    Return available mailboxes per account.
+    Return available mailboxes per account (cached).
     """
     cache_key = "mailboxes_all_accounts"
     cached = _MAILBOX_CACHE.get(cache_key)
@@ -188,32 +136,43 @@ def get_email_mailbox(background_tasks: BackgroundTasks) -> Dict[str, Dict[str, 
         background_tasks.add_task(_refresh_mailbox_cache, cache_key)
         return cached
 
-    res = _compute_mailbox_status()
+    res = await _compute_mailbox_status_async()
     _MAILBOX_CACHE.set(cache_key, res)
     return res
 
 
-def _compute_mailbox_status() -> Dict[str, Dict[str, Dict[str, int]]]:
-    res: Dict[str, Dict[str, Dict[str, int]]] = {}
-    for acc_name, manager in ACCOUNTS.items():
-        mailbox_list = manager.list_mailboxes()
-        res[acc_name] = {}
-        for mailbox in mailbox_list:
-            mailbox_status = manager.mailbox_status(mailbox)
-            res[acc_name][mailbox] = mailbox_status
-    return res
+async def _compute_mailbox_status_async() -> Dict[str, Dict[str, Dict[str, int]]]:
+    async def per_account(acc_name: str, manager: EmailManager) -> Tuple[str, Dict[str, Dict[str, int]]]:
+        mailboxes = await run_blocking(manager.list_mailboxes)
+
+        async def per_mailbox(mb: str) -> Tuple[str, Dict[str, int]]:
+            status = await run_blocking(manager.mailbox_status, mb)
+            return mb, status
+
+        mailbox_pairs = await asyncio.gather(*(per_mailbox(mb) for mb in mailboxes))
+        return acc_name, dict(mailbox_pairs)
+
+    pairs = await asyncio.gather(*(per_account(name, mgr) for name, mgr in ACCOUNTS.items()))
+    return dict(pairs)
 
 
 def _refresh_mailbox_cache(cache_key: str) -> None:
+    """
+    BackgroundTasks runs this in a threadpool.
+    We can safely run the async computation by creating an event loop in this thread.
+    """
     try:
-        res = _compute_mailbox_status()
+        res = asyncio.run(_compute_mailbox_status_async())
         _MAILBOX_CACHE.set(cache_key, res)
     except Exception:
         pass
 
 
+# ---------------------------
+# Single email
+# ---------------------------
 @app.get("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}")
-def get_email(background_tasks: BackgroundTasks, account: str, mailbox: str, email_id: int) -> dict:
+async def get_email(background_tasks: BackgroundTasks, account: str, mailbox: str, email_id: int) -> dict:
     """
     Fetch a single email by UID for a given account and mailbox.
     """
@@ -234,7 +193,8 @@ def get_email(background_tasks: BackgroundTasks, account: str, mailbox: str, ema
 
     email_ref = EmailRef(mailbox=mailbox, uid=email_id)
 
-    message: EmailMessage = manager.fetch_message_by_ref(
+    message: EmailMessage = await run_blocking(
+        manager.fetch_message_by_ref,
         email_ref,
         include_attachment_meta=True,
     )
@@ -258,18 +218,18 @@ def _safe_mark_seen(account: str, ref: EmailRef) -> None:
     except Exception:
         pass
 
+
+# ---------------------------
+# Attachment download
+# ---------------------------
 @app.get("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/attachment")
-def download_email_attachment(
+async def download_email_attachment(
     account: str,
     mailbox: str,
     email_id: int,
     part: str = Query(..., description='IMAP part section for attachment, e.g. "2.1"'),
-    filename: str | None = Query(
-        None, description="Filename to use when downloading"
-    ),
-    content_type: str | None = Query(
-        None, description="MIME type, e.g. application/pdf"
-    ),
+    filename: str | None = Query(None, description="Filename to use when downloading"),
+    content_type: str | None = Query(None, description="MIME type, e.g. application/pdf"),
 ) -> Response:
     """
     Download a single attachment by EmailRef + IMAP part.
@@ -288,7 +248,7 @@ def download_email_attachment(
     ref = EmailRef(mailbox=mailbox, uid=email_id)
 
     try:
-        attachment_bytes = manager.fetch_attachment_by_ref_and_meta(ref, part)
+        attachment_bytes = await run_blocking(manager.fetch_attachment_by_ref_and_meta, ref, part)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -297,14 +257,10 @@ def download_email_attachment(
     filename = safe_filename(filename, fallback=f"email-{email_id}-part-{part}.bin")
 
     resolved_content_type = (
-        content_type
-        or mimetypes.guess_type(filename)[0]
-        or "application/octet-stream"
+        content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     )
 
-    headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"'
-    }
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
 
     return StreamingResponse(
         io.BytesIO(attachment_bytes),
@@ -312,8 +268,12 @@ def download_email_attachment(
         headers=headers,
     )
 
+
+# ---------------------------
+# Archive / delete / move
+# ---------------------------
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/archive")
-def archive_email(account: str, mailbox: str, email_id: int) -> dict:
+async def archive_email(account: str, mailbox: str, email_id: int) -> dict:
     """
     Archive a single email by moving it out of the current mailbox.
 
@@ -322,42 +282,45 @@ def archive_email(account: str, mailbox: str, email_id: int) -> dict:
     """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
     ref = EmailRef(mailbox=mailbox, uid=email_id)
 
-    # Ensure Archive mailbox exists
     archive_mailbox = "Archive"
-    mailboxes = manager.list_mailboxes()
+    mailboxes = await run_blocking(manager.list_mailboxes)
     if archive_mailbox not in mailboxes:
-        manager.create_mailbox(archive_mailbox)
+        await run_blocking(manager.create_mailbox, archive_mailbox)
 
-    manager.move([ref], src_mailbox=mailbox, dst_mailbox=archive_mailbox)
+    await run_blocking(manager.move, [ref], src_mailbox=mailbox, dst_mailbox=archive_mailbox)
 
     return {"status": "ok", "action": "archive", "account": account, "mailbox": mailbox, "email_id": email_id}
 
+
 @app.delete("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}")
-def delete_email(account: str, mailbox: str, email_id: int) -> dict:
+async def delete_email(account: str, mailbox: str, email_id: int) -> dict:
     """
     Delete a single email (mark as \\Deleted and expunge from the mailbox).
     """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
     ref = EmailRef(mailbox=mailbox, uid=email_id)
 
-    manager.delete([ref])
-    manager.expunge(mailbox=mailbox)
+    await run_blocking(manager.delete, [ref])
+    await run_blocking(manager.expunge, mailbox=mailbox)
 
     return {"status": "ok", "action": "delete", "account": account, "mailbox": mailbox, "email_id": email_id}
 
+
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/move")
-def move_email(
+async def move_email(
     account: str,
     mailbox: str,
     email_id: int,
@@ -375,11 +338,11 @@ def move_email(
 
     ref = EmailRef(mailbox=mailbox, uid=email_id)
 
-    mailboxes = manager.list_mailboxes()
+    mailboxes = await run_blocking(manager.list_mailboxes)
     if destination_mailbox not in mailboxes:
-        manager.create_mailbox(destination_mailbox)
+        await run_blocking(manager.create_mailbox, destination_mailbox)
 
-    manager.move([ref], src_mailbox=mailbox, dst_mailbox=destination_mailbox)
+    await run_blocking(manager.move, [ref], src_mailbox=mailbox, dst_mailbox=destination_mailbox)
 
     return {
         "status": "ok",
@@ -390,6 +353,10 @@ def move_email(
         "email_id": email_id,
     }
 
+
+# ---------------------------
+# Draft / reply / reply-all / forward / send
+# ---------------------------
 @app.post("/api/accounts/{account:path}/draft")
 async def save_draft(
     account: str,
@@ -417,7 +384,8 @@ async def save_draft(
     attachment_models = await uploadfiles_to_attachments(attachments)
     extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
 
-    save_result = manager.save_draft(
+    save_result = await run_blocking(
+        manager.save_draft,
         subject=subject,
         to=to or [],
         from_addr=from_addr or account,
@@ -438,13 +406,14 @@ async def save_draft(
         "result": save_result.to_dict(),
     }
 
+
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/reply")
 async def reply_email(
     account: str,
     mailbox: str,
     email_id: int,
-    body: str = Form(...),
-    body_html: Optional[str] = Form(None),
+    text: str = Form(...),
+    html: Optional[str] = Form(None),
     from_addr: Optional[str] = Form(None),
     quote_original: bool = Form(True),
     subject: Optional[str] = Form(None),
@@ -462,7 +431,8 @@ async def reply_email(
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    original: EmailMessage = manager.fetch_message_by_ref(
+    original: EmailMessage = await run_blocking(
+        manager.fetch_message_by_ref,
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachment_meta=False,
     )
@@ -470,10 +440,11 @@ async def reply_email(
     attachment_models = await uploadfiles_to_attachments(attachments)
     extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
 
-    send_result = manager.reply(
+    send_result = await run_blocking(
+        manager.reply,
         original=original,
-        body=body,
-        body_html=body_html,
+        text=text,
+        html=html,
         from_addr=from_addr,
         quote_original=quote_original,
         to=to,
@@ -493,13 +464,14 @@ async def reply_email(
         "result": send_result.to_dict(),
     }
 
+
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/reply-all")
 async def reply_all_email(
     account: str,
     mailbox: str,
     email_id: int,
-    body: str = Form(...),
-    body_html: Optional[str] = Form(None),
+    text: str = Form(...),
+    html: Optional[str] = Form(None),
     from_addr: Optional[str] = Form(None),
     quote_original: bool = Form(True),
     subject: Optional[str] = Form(None),
@@ -517,7 +489,8 @@ async def reply_all_email(
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    original: EmailMessage = manager.fetch_message_by_ref(
+    original: EmailMessage = await run_blocking(
+        manager.fetch_message_by_ref,
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachment_meta=False,
     )
@@ -525,10 +498,11 @@ async def reply_all_email(
     attachment_models = await uploadfiles_to_attachments(attachments)
     extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
 
-    send_result = manager.reply_all(
+    send_result = await run_blocking(
+        manager.reply_all,
         original=original,
-        body=body,
-        body_html=body_html,
+        text=text,
+        html=html,
         from_addr=from_addr,
         quote_original=quote_original,
         to=to,
@@ -548,14 +522,15 @@ async def reply_all_email(
         "result": send_result.to_dict(),
     }
 
+
 @app.post("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/forward")
 async def forward_email(
     account: str,
     mailbox: str,
     email_id: int,
     to: List[str] = Form(...),
-    body: Optional[str] = Form(None),
-    body_html: Optional[str] = Form(None),
+    text: Optional[str] = Form(None),
+    html: Optional[str] = Form(None),
     from_addr: Optional[str] = Form(None),
     include_original: bool = Form(True),
     include_attachments: bool = Form(True),
@@ -573,7 +548,8 @@ async def forward_email(
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    original: EmailMessage = manager.fetch_message_by_ref(
+    original: EmailMessage = await run_blocking(
+        manager.fetch_message_by_ref,
         EmailRef(mailbox=mailbox, uid=email_id),
         include_attachment_meta=True,
     )
@@ -581,11 +557,12 @@ async def forward_email(
     attachment_models = await uploadfiles_to_attachments(attachments)
     extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
 
-    send_result = manager.forward(
+    send_result = await run_blocking(
+        manager.forward,
         original=original,
         to=to,
-        body=body,
-        body_html=body_html,
+        text=text,
+        html=html,
         from_addr=from_addr,
         include_original=include_original,
         include_attachments=include_attachments,
@@ -604,6 +581,7 @@ async def forward_email(
         "email_id": email_id,
         "result": send_result.to_dict(),
     }
+
 
 @app.post("/api/accounts/{account:path}/send")
 async def send_email(
@@ -628,7 +606,8 @@ async def send_email(
     attachment_models = await uploadfiles_to_attachments(attachments)
     extra_headers = build_extra_headers(reply_to=reply_to, priority=priority)
 
-    send_result = manager.compose_and_send(
+    send_result = await run_blocking(
+        manager.compose_and_send,
         subject=subject,
         to=to,
         from_addr=from_addr or account,
@@ -648,7 +627,9 @@ async def send_email(
     }
 
 
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# ---------------------------
+# Static SPA hosting
+# ---------------------------
 FRONTEND_DIR = BASE / "frontend"
 DIST_DIR = FRONTEND_DIR / "dist"
 
@@ -662,7 +643,7 @@ if DIST_DIR.exists():
     app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
 
     @app.get("/{path:path}")
-    def spa(path: str):
+    async def spa(path: str):
         """
         Serve the SPA index for any non-API route.
         """

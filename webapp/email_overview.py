@@ -157,11 +157,11 @@ def build_email_overview(
             if search_mode == "ai" and cached_ai is not None:
                 _apply_cached_query(q, cached_ai)
             else:
-                q = (
-                    q.subject_any([normalized_search])
-                     .text_any([normalized_search])
-                     .to_any([normalized_search])
-                     .from_any([normalized_search])
+                q.query = q.query.or_(
+                    IMAPQuery().subject(normalized_search),
+                    IMAPQuery().text(normalized_search),
+                    IMAPQuery().to(normalized_search),
+                    IMAPQuery().from_(normalized_search),
                 )
 
         # Refresh only on first page AND only on cache miss (we're here)
@@ -240,7 +240,6 @@ def build_email_overview(
             "search_mode": search_mode,
         }
         next_cursor = encode_cursor(next_cursor_state)
-    print(next_cursor_state)
 
     resp = {
         "data": data,

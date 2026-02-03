@@ -114,6 +114,15 @@ def _extract_parts(msg: PyMessage) -> Tuple[Optional[str], Optional[str], List[A
 
             payload = part.get_payload(decode=True) or b""
 
+            content_id = part.get("Content-ID")
+            if content_id:
+                content_id = content_id.strip().strip("<>").strip() or None
+
+            is_inline_image = (
+                ctype.startswith("image/")
+                and (("inline" in disp) or bool(content_id))
+            )
+
             # Attachment (explicit disposition or filename)
             if filename or "attachment" in disp:
                 atts.append(
@@ -123,6 +132,9 @@ def _extract_parts(msg: PyMessage) -> Tuple[Optional[str], Optional[str], List[A
                         content_type=ctype,
                         data=payload,
                         size=len(payload),
+                        content_id=content_id,
+                        disposition=("inline" if is_inline_image else ("attachment" if "attachment" in disp else None)),
+                        is_inline=is_inline_image,
                     )
                 )
                 attachment_idx += 1

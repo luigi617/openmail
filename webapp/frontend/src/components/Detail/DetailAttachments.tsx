@@ -72,8 +72,11 @@ function triggerDownload(url: string) {
 export default function DetailAttachments(props: DetailAttachmentsProps) {
   const attachments = useMemo(() => {
     const a = props.attachments ?? [];
-    return Array.isArray(a) ? a.filter(Boolean) as Attachment[] : [];
+    return Array.isArray(a)
+      ? (a.filter(att => att && !att.is_inline) as Attachment[])
+      : [];
   }, [props.attachments]);
+
 
   if (attachments.length === 0) return null;
 

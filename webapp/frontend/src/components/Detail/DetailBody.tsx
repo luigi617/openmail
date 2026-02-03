@@ -176,7 +176,7 @@ export default function DetailBody(props: DetailBodyProps) {
   const html = props.html ?? "";
   const text = props.text ?? "";
   const hasHtml = html.trim().length > 0;
-
+  
   const derivedText = useMemo(() => {
     if (text.trim().length) return text;
     if (hasHtml) return htmlToText(html);

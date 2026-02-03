@@ -20,6 +20,7 @@ from email_management.imap.bodystructure import (
     parse_bodystructure,
     pick_best_text_parts,
 )
+from email_management.imap.inline_cid import inline_cids_as_data_uris
 from email_management.imap.pagination import PagedSearchResult
 from email_management.imap.parser import decode_body_chunk, decode_transfer, parse_headers_and_bodies, parse_overview
 from email_management.imap.query import IMAPQuery
@@ -480,6 +481,45 @@ class IMAPClient:
                         if html_ref is not None:
                             mime_b, body_b = self._fetch_section_mime_and_body(conn, uid=r.uid, section=html_ref.part)
                             html = self._decode_section(mime_bytes=mime_b, body_bytes=body_b)
+                        
+                        if html and attachment_metas:
+                            def _fetch_bytes(part: str) -> bytes:
+                                # Use the existing conn to avoid lock reentry and extra reconnect logic.
+                                # (This duplicates fetch_attachment logic but keeps it in-process.)
+                                typ, mime_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}.MIME])")
+                                if typ != "OK" or not mime_data:
+                                    raise IMAPError(f"FETCH attachment MIME failed uid={r.uid} part={part}: {mime_data}")
+
+                                mime_bytes2 = None
+                                for item in mime_data:
+                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
+                                        mime_bytes2 = bytes(item[1])
+                                        break
+
+                                cte = None
+                                if mime_bytes2:
+                                    msg = BytesParser(policy=default_policy).parsebytes(mime_bytes2)
+                                    cte = msg.get("Content-Transfer-Encoding")
+
+                                typ, body_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}])")
+                                if typ != "OK" or not body_data:
+                                    raise IMAPError(f"FETCH attachment failed uid={r.uid} part={part}: {body_data}")
+
+                                payload = None
+                                for item in body_data:
+                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
+                                        payload = bytes(item[1])
+                                        break
+                                if payload is None:
+                                    raise IMAPError(f"Attachment payload not found uid={r.uid} part={part}")
+
+                                return decode_transfer(payload, cte)
+
+                            html = inline_cids_as_data_uris(
+                                html=html,
+                                attachment_metas=attachment_metas,
+                                fetch_part_bytes=_fetch_bytes,
+                            )
 
                     except Exception:
                         # Best-effort: headers still returned; bodies left empty.

@@ -27,6 +27,10 @@ export type Attachment = {
   filename: string;
   content_type: string;
   size: number;
+  content_id: string;
+  disposition: string;
+  is_inline: boolean;
+  content_location: string;
 };
 
 export type EmailOverview = {
