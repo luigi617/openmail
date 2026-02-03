@@ -315,7 +315,6 @@ export function useEmailAppCore() {
           mailbox: String(mailbox),
           uid: uid,
         });
-        console.log(msg.headers);
         
 
         setSelectedMessage(msg);
