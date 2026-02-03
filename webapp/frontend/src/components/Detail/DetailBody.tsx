@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import DOMPurify from "dompurify";
 import type { Attachment } from "../../types/email";
 import DetailAttachments from "./DetailAttachments";

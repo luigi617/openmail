@@ -7,7 +7,7 @@ export type EmailsHeaderProps = {
 };
 
 export default function EmailsHeader(props: EmailsHeaderProps) {
-  const { totalEmails, hasMore, isLoadingMore, onLoadMore, onCompose } = props;
+  const { totalEmails, onCompose } = props;
 
   const showCount = Number.isFinite(totalEmails) && totalEmails > 0;
 
