@@ -13,26 +13,46 @@ export const COLOR_PALETTE = [
   "#f97373",
 ] as const;
 
+
+
 export function formatDate(value: unknown, verbose?: boolean): string {
   if (!value) return "";
+
   const date = new Date(value as any);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  if (verbose) {
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
+  const now = new Date();
+
+  // Normalize to midnight for date-only comparisons
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const targetDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+
+  if (targetDay.getTime() === today.getTime()) {
+    // Today → time only (24h)
+    return date.toLocaleTimeString(undefined, {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
 
-  return date.toLocaleString(undefined, {
+  if (targetDay.getTime() === yesterday.getTime()) {
+    // Yesterday
+    return "Yesterday";
+  }
+
+  // Older → date only
+  return date.toLocaleDateString(undefined, {
+    year: verbose ? "numeric" : undefined,
     month: "short",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 

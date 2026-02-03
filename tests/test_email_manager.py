@@ -202,14 +202,14 @@ def test_fetch_message_by_ref_and_multi_refs(manager: EmailManager, fake_imap: F
     ref1 = fake_imap.add_parsed_message("INBOX", m1)
     ref2 = fake_imap.add_parsed_message("INBOX", m2)
 
-    msg1_no_atts = manager.fetch_message_by_ref(ref1, include_attachments=False)
+    msg1_no_atts = manager.fetch_message_by_ref(ref1, include_attachment_meta=False)
     assert msg1_no_atts.text == "m1"
     assert msg1_no_atts.attachments == []
 
-    msg1_with_atts = manager.fetch_message_by_ref(ref1, include_attachments=True)
+    msg1_with_atts = manager.fetch_message_by_ref(ref1, include_attachment_meta=True)
     assert len(msg1_with_atts.attachments) == 1
 
-    msgs = manager.fetch_messages_by_multi_refs([ref1, ref2], include_attachments=False)
+    msgs = manager.fetch_messages_by_multi_refs([ref1, ref2], include_attachment_meta=False)
     texts = {m.text for m in msgs}
     assert texts == {"m1", "m2"}
 

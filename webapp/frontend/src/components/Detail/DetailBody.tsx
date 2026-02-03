@@ -1,6 +1,11 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import DOMPurify from "dompurify";
+import type { Attachment } from "../../types/email";
+import DetailAttachments from "./DetailAttachments";
 
+/**
+ * Basic HTML -> text fallback
+ */
 function htmlToText(html: string) {
   const div = document.createElement("div");
   div.innerHTML = html;
@@ -9,16 +14,29 @@ function htmlToText(html: string) {
 }
 
 export type DetailBodyProps = {
+  account: string;
+  mailbox: string;
+  email_id: number;
   html?: string | null;
   text?: string | null;
+  attachments?: Attachment[];
 };
 
+/**
+ * Sanitize email HTML for rendering inside Shadow DOM.
+ *
+ * Notes:
+ * - We forbid scripts/iframes/embeds/forms/event handlers.
+ * - We also forbid <style> by default for stability (recommended).
+ *   If you want higher fidelity, remove "style" from FORBID_TAGS.
+ */
 function sanitizeEmailHtml(html: string) {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
+
     FORBID_TAGS: [
       "script",
-      "style",
+      "style", // remove this if you want to allow email-provided <style>
       "noscript",
       "iframe",
       "object",
@@ -26,130 +44,130 @@ function sanitizeEmailHtml(html: string) {
       "base",
       "meta",
       "link",
-      "link",
       "form",
       "input",
       "button",
       "textarea",
       "select",
     ],
+
     FORBID_ATTR: [
+      // common event handlers
       "onload",
       "onclick",
       "onerror",
       "onmouseover",
       "onfocus",
       "onsubmit",
+      "onmouseenter",
+      "onmouseleave",
+      "onkeydown",
+      "onkeyup",
+      "onkeypress",
+      "oninput",
+      "onchange",
     ],
+
+    // Optional hardening knobs:
+    // ALLOW_UNKNOWN_PROTOCOLS: false,
   });
 }
 
-function buildSrcDoc(safeBodyHtml: string) {
-  // No scripts. Keep styling inside iframe only.
-  // "base target=_blank" ensures links don't navigate inside the iframe.
-  // (Also add rel protections in-case some clients rely on it.)
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="referrer" content="no-referrer" />
-  <base target="_blank" />
-  <style>
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 14px;
-      line-height: 1.35;
-      color: #111827;
-      background: transparent;
-      overflow-wrap: anywhere;
-    }
-    img { max-width: 100%; height: auto; }
-    table { max-width: 100%; }
-    pre { white-space: pre-wrap; }
-    a { color: inherit; }
-  </style>
-</head>
-<body>
-  <div id="email-root">${safeBodyHtml}</div>
-</body>
-</html>`;
-}
+/**
+ * Shadow DOM email renderer (no iframe).
+ * - isolates styles to avoid email CSS leaking into your app
+ * - natural height (no iframe resizing issues)
+ */
+function EmailShadowBody({ html }: { html: string }) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
 
-function EmailIFrame({ html }: { html: string }) {
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  const srcDoc = useMemo(() => {
-    const safe = sanitizeEmailHtml(html);
-    return buildSrcDoc(safe);
-  }, [html]);
+  const safeHtml = useMemo(() => sanitizeEmailHtml(html), [html]);
 
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
+    const host = hostRef.current;
+    if (!host) return;
 
-    // Resize iframe to content height.
-    // This requires SAME-ORIGIN access; srcDoc gives that.
-    const onLoad = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return;
+    const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
 
-        // Add rel to all links for safety (base already sets target=_blank).
-        doc.querySelectorAll("a[href]").forEach((a) => {
-          a.setAttribute("rel", "noopener noreferrer");
-        });
+    // Clear existing content
+    while (shadow.firstChild) shadow.removeChild(shadow.firstChild);
 
-        const resize = () => {
-          const body = doc.body;
-          const htmlEl = doc.documentElement;
-          const height = Math.max(
-            body?.scrollHeight ?? 0,
-            htmlEl?.scrollHeight ?? 0
-          );
-          iframe.style.height = `${height}px`;
-        };
+    // Base styles inside ShadowRoot for consistent rendering
+    const style = document.createElement("style");
+    style.textContent = `
+      :host { display: block; }
 
-        resize();
-
-        // Observe changes (images loading, fonts, etc.)
-        const ro = new ResizeObserver(() => resize());
-        ro.observe(doc.documentElement);
-
-        // Also listen for late-loading images
-        doc.querySelectorAll("img").forEach((img) => {
-          img.addEventListener("load", resize);
-          img.addEventListener("error", resize);
-        });
-
-        return () => ro.disconnect();
-      } catch {
-        // If sandbox changes restrict access, height won't auto-adjust.
+      .email-root {
+        /* Your forced light theme */
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        line-height: 1.45;
+        color: #111827;
+        background: transparent;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        padding: 6px;
       }
-    };
 
-    iframe.addEventListener("load", onLoad);
-    return () => iframe.removeEventListener("load", onLoad);
-  }, [srcDoc]);
+      /* Clamp common troublesome elements */
+      img {
+        max-width: 100%;
+        height: auto;
+      }
 
-  return (
-    <iframe
-      ref={iframeRef}
-      title="Email content"
-      // Strictest: no scripts. allow-popups lets target=_blank work.
-      // allow-top-navigation is NOT granted, so links can't take over the tab.
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={srcDoc}
-      style={{
-        width: "100%",
-        border: "0",
-        display: "block",
-        background: "transparent",
-      }}
-      // Optional: keep it out of tab order
-      tabIndex={-1}
-    />
-  );
+      table {
+        max-width: 100%;
+        width: auto !important;
+        border-collapse: collapse;
+      }
+
+      pre, code {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      blockquote {
+        margin: 0.5rem 0;
+        padding-left: 0.75rem;
+        border-left: 3px solid rgba(127,127,127,0.35);
+      }
+
+      a { color: #0a84ff; }
+
+      hr {
+        border: none;
+        border-top: 1px solid rgba(127,127,127,0.35);
+        margin: 12px 0;
+      }
+
+      /* Prevent overly wide fixed-width stuff */
+      * {
+        max-width: 100%!important;
+        box-sizing: border-box;
+      }
+    `;
+
+    const root = document.createElement("div");
+    root.className = "email-root";
+    root.innerHTML = safeHtml;
+
+    shadow.appendChild(style);
+    shadow.appendChild(root);
+
+    // Harden links (in shadow root)
+    shadow.querySelectorAll("a[href]").forEach((a) => {
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener noreferrer");
+    });
+
+    // Optional: prevent mixed-content images from breaking layout
+    // and ensure images trigger layout changes naturally (no need for resize hacks).
+    // If you want to add placeholders, you can handle it here.
+
+  }, [safeHtml]);
+
+  return <div ref={hostRef} />;
 }
 
 export default function DetailBody(props: DetailBodyProps) {
@@ -163,14 +181,36 @@ export default function DetailBody(props: DetailBodyProps) {
     return "";
   }, [text, hasHtml, html]);
 
+  const attachments = props.attachments ?? [];
+  const showAttachments = attachments.length > 0;
+
+  const AttachmentsInline = showAttachments ? (
+    <div className="detail-attachments-inline">
+      <DetailAttachments
+        attachments={attachments}
+        account={props.account}
+        email_id={props.email_id}
+        mailbox={props.mailbox}
+      />
+    </div>
+  ) : null;
+
   if (hasHtml) {
     return (
-      <div className="detail-body html">
-        <EmailIFrame html={html} />
+      <div className="detail-body-block">
+        <div className="detail-body html light-island">
+          <EmailShadowBody html={html} />
+        </div>
+        {AttachmentsInline}
       </div>
     );
   }
 
   const safeText = derivedText.trim().length ? derivedText : "";
-  return <pre className="detail-body text">{safeText}</pre>;
+  return (
+    <div className="detail-body-block">
+      <pre className="detail-body text">{safeText}</pre>
+      {AttachmentsInline}
+    </div>
+  );
 }

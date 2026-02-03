@@ -1,14 +1,35 @@
 // src/components/Sidebar/SearchCard.tsx
-import React from "react";
-import searchIcon from "@/assets/svg/search.svg";
+import SearchIcon from "@/assets/svg/search.svg?react";
+import { useState } from "react";
 
 type Props = {
   searchQuery: string;
-  onChange: (v: string) => void;
-  onSearch: () => void;
+  onSearch: (v: string) => void;
 };
 
 export default function SearchCard(props: Props) {
+  const [value, setValue] = useState(props.searchQuery);
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    setValue(next);
+
+    // If cleared, immediately search empty
+    if (next.trim() === "") {
+      props.onSearch("");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      props.onSearch(value);
+    }
+  };
+
+  const handleClick = () => {
+    props.onSearch(value);
+  };
+
   return (
     <section className="card">
       <h2>Search</h2>
@@ -17,14 +38,12 @@ export default function SearchCard(props: Props) {
           type="text"
           className="search-input"
           placeholder="Search mail"
-          value={props.searchQuery}
-          onChange={(e) => props.onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") props.onSearch();
-          }}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
         />
-        <button type="button" className="search-btn" aria-label="Search" onClick={props.onSearch}>
-          <img src={searchIcon} alt="" aria-hidden="true" className="icon-img" />
+        <button type="button" className="search-btn" aria-label="Search" onClick={handleClick}>
+          <SearchIcon className="icon" aria-hidden />
         </button>
       </div>
     </section>

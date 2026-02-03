@@ -6,6 +6,7 @@ export type ComposerMode = "compose" | "reply" | "reply_all" | "forward";
 
 export type ComposerExtraFieldKey = "cc" | "bcc" | "replyto" | "priority";
 
+
 export type ComposerState = {
   open: boolean;
   minimized: boolean;

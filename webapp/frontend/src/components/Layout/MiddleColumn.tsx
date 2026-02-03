@@ -1,13 +1,14 @@
-import React from "react";
 import EmailsHeader from "../Middle/EmailsHeader";
 import EmailList from "../Middle/EmailList";
-import type { EmailOverview } from "../../types/email"
+import type { EmailOverview } from "../../types/email";
+import { useEffect, useRef, useCallback } from "react";
 
 export type MiddleColumnProps = {
-  page: number;
-  pageCount: number;
-  onPrevPage: () => void;
-  onNextPage: () => void;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  totalEmails: number;
+
+  onLoadMore: () => void;
   onCompose: () => void;
 
   emails: EmailOverview[];
@@ -20,13 +21,46 @@ export type MiddleColumnProps = {
 };
 
 export default function MiddleColumn(props: MiddleColumnProps) {
+  const listRef = useRef<HTMLDivElement | null>(null);      // <-- scroll container (.email-list)
+  const sentinelRef = useRef<HTMLDivElement | null>(null);  // <-- bottom sentinel
+
+  const maybeLoadMore = useCallback(() => {
+    if (!props.hasMore) return;
+    if (props.isLoadingMore) return;
+    if (props.emptyList) return;
+    props.onLoadMore();
+  }, [props.hasMore, props.isLoadingMore, props.emptyList, props.onLoadMore]);
+
+  useEffect(() => {
+    const rootEl = listRef.current;
+    const target = sentinelRef.current;
+    if (!rootEl || !target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          maybeLoadMore();
+        }
+      },
+      {
+        root: rootEl,           // IMPORTANT: observe within the scrolling email list
+        threshold: 0,
+        rootMargin: "200px",    // prefetch a bit before hitting the absolute bottom
+      }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [maybeLoadMore, props.emails.length]); // re-run when list grows so IO recalculates
+
   return (
     <>
       <EmailsHeader
-        page={props.page}
-        pageCount={props.pageCount}
-        onPrev={props.onPrevPage}
-        onNext={props.onNextPage}
+        totalEmails={props.totalEmails}
+        hasMore={props.hasMore}
+        isLoadingMore={props.isLoadingMore}
+        onLoadMore={props.onLoadMore}
         onCompose={props.onCompose}
       />
 
@@ -37,10 +71,12 @@ export default function MiddleColumn(props: MiddleColumnProps) {
           getColorForEmail={props.getColorForEmail}
           getEmailId={props.getEmailId}
           onSelectEmail={props.onSelectEmail}
+          listRef={listRef}
+          sentinelRef={sentinelRef}
+          showLoadingMore={props.isLoadingMore}
+          showEnd={!props.hasMore && props.emails.length > 0}
+          emptyList={props.emptyList}
         />
-        <div className={`empty-state ${props.emptyList ? "" : "hidden"}`}>
-          No emails match the current filters.
-        </div>
       </section>
     </>
   );

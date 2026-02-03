@@ -422,7 +422,7 @@ export function useComposer(args: {
     const attachments = state.attachments;
 
     const draftsMailbox =
-      guessDraftsMailbox(args.mailboxData[fromAccount]) ??
+      guessDraftsMailbox(Object.keys(args.mailboxData[fromAccount])) ??
       "Drafts";
 
     try {

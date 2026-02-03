@@ -1,5 +1,4 @@
 // src/components/Layout/Layout.tsx
-import React from "react";
 import Sidebar, { type SidebarProps } from "./Sidebar";
 import MiddleColumn, { type MiddleColumnProps } from "./MiddleColumn";
 import DetailColumn, { type DetailColumnProps } from "./DetailColumn";
@@ -9,6 +8,7 @@ export default function Layout(props: {
   middle: MiddleColumnProps;
   detail: DetailColumnProps;
 }) {
+  
   return (
     <main className="layout">
       <aside className="sidebar">

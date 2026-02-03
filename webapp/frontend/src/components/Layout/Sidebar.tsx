@@ -1,5 +1,4 @@
 // src/components/Layout/Sidebar.tsx
-import React from "react";
 import SearchCard from "../Sidebar/SearchCard";
 import MailboxesCard from "../Sidebar/MailboxesCard";
 import LegendCard from "../Sidebar/LegendCard";
@@ -7,8 +6,7 @@ import type { MailboxData } from "../../types/email"
 
 export type SidebarProps = {
   searchQuery: string;
-  onSearchQueryChange: (v: string) => void;
-  onSearch: () => void;
+  onSearch: (v: string) => void;
 
   mailboxData: MailboxData;
   currentMailbox: string;
@@ -24,7 +22,7 @@ export type SidebarProps = {
 export default function Sidebar(props: SidebarProps) {
   return (
     <>
-      <SearchCard searchQuery={props.searchQuery} onChange={props.onSearchQueryChange} onSearch={props.onSearch} />
+      <SearchCard searchQuery={props.searchQuery} onSearch={props.onSearch} />
 
       <MailboxesCard
         mailboxData={props.mailboxData}

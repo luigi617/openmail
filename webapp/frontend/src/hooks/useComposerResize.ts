@@ -6,11 +6,10 @@ export function useComposerResize(enabled: boolean) {
   const zoneRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
 
     const composerEl = composerRef.current;
     const zoneEl = zoneRef.current;
-    if (!composerEl || !zoneEl) return;
+    if (!composerEl) return;
 
     let isResizing = false;
     let startX = 0;
@@ -41,6 +40,7 @@ export function useComposerResize(enabled: boolean) {
 
     const onDown = (e: PointerEvent) => {
       // only left click / primary pointer
+      if (!enabled) return;
       if (e.button !== 0) return;
 
       e.preventDefault();
@@ -57,10 +57,23 @@ export function useComposerResize(enabled: boolean) {
       document.addEventListener("pointercancel", onUp);
     };
 
+    // When disabled (minimized), stop resizing and clear inline sizing so
+    // minimized CSS can take over (prevents "blank composer" after resize).
+    if (!enabled) {
+      // stop any in-progress drag
+      onUp();
+      // clear inline styles applied by resizing
+      composerEl.style.width = "";
+      composerEl.style.height = "";
+      return;
+    }
+
+    if (!zoneEl) return;
     zoneEl.addEventListener("pointerdown", onDown);
 
     return () => {
-      zoneEl.removeEventListener("pointerdown", onDown);
+      onUp();
+      zoneEl?.removeEventListener("pointerdown", onDown);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);

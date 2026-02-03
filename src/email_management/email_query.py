@@ -246,7 +246,7 @@ class EmailQuery:
         before_uid: Optional[int] = None,
         after_uid: Optional[int] = None,
         refresh: bool = False,
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
     ) -> tuple[PagedSearchResult, List[EmailMessage]]:
         """
         Fetch a page of full EmailMessage objects plus its paging metadata.
@@ -254,7 +254,7 @@ class EmailQuery:
         page = self.search(before_uid=before_uid, after_uid=after_uid, refresh=refresh)
         if not page.refs:
             return page, []
-        messages = self._m.imap.fetch(page.refs, include_attachments=include_attachments)
+        messages = self._m.imap.fetch(page.refs, include_attachment_meta=include_attachment_meta)
         return page, messages
 
     def fetch_overview(

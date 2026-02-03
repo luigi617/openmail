@@ -34,16 +34,16 @@ class FakeEasyQuery:
         before_uid=None,
         after_uid=None,
         refresh: bool = False,
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
         **_ignored,
     ):
-        self.fetch_calls.append(include_attachments)
+        self.fetch_calls.append(include_attachment_meta)
         self.fetch_kwargs.append(
             {
                 "before_uid": before_uid,
                 "after_uid": after_uid,
                 "refresh": refresh,
-                "include_attachments": include_attachments,
+                "include_attachment_meta": include_attachment_meta,
             }
         )
 
@@ -218,7 +218,7 @@ def test_fetch_latest_uses_imap_query_and_limit(monkeypatch):
         mailbox="INBOX",
         n=2,
         unseen_only=False,
-        include_attachments=True,
+        include_attachment_meta=True,
     )
 
     assert isinstance(msgs, list)
@@ -240,7 +240,7 @@ def test_summarize_multi_emails_uses_llm(monkeypatch):
         mailbox="INBOX",
         n=2,
         unseen_only=False,
-        include_attachments=True,
+        include_attachment_meta=True,
     )
 
     text, info = assistant.summarize_multi_emails(
@@ -263,7 +263,7 @@ def test_summarize_single_email_uses_llm(monkeypatch):
         mailbox="INBOX",
         n=2,
         unseen_only=False,
-        include_attachments=True,
+        include_attachment_meta=True,
     )
 
     text, info = assistant.summarize_email(
@@ -285,7 +285,7 @@ def test_generate_reply_uses_llm(monkeypatch):
         mailbox="INBOX",
         n=2,
         unseen_only=False,
-        include_attachments=True,
+        include_attachment_meta=True,
     )
 
     text, info = assistant.generate_reply(

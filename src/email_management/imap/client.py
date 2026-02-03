@@ -20,6 +20,7 @@ from email_management.imap.bodystructure import (
     parse_bodystructure,
     pick_best_text_parts,
 )
+from email_management.imap.inline_cid import inline_cids_as_data_uris
 from email_management.imap.pagination import PagedSearchResult
 from email_management.imap.parser import decode_body_chunk, decode_transfer, parse_headers_and_bodies, parse_overview
 from email_management.imap.query import IMAPQuery
@@ -246,7 +247,7 @@ class IMAPClient:
             self._search_cache[cache_key] = uids
             return uids
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     def search_page_cached(
         self,
@@ -378,7 +379,7 @@ class IMAPClient:
     # FETCH full message (headers + best text/html via BODYSTRUCTURE)
     # -----------------------
 
-    def fetch(self, refs: Sequence[EmailRef], *, include_attachments: bool = False) -> List[EmailMessage]:
+    def fetch(self, refs: Sequence[EmailRef], *, include_attachment_meta: bool = False) -> List[EmailMessage]:
         if not refs:
             return []
 
@@ -470,7 +471,7 @@ class IMAPClient:
                         text_parts, atts = extract_text_and_attachments(tree)
                         plain_ref, html_ref = pick_best_text_parts(text_parts)
 
-                        if include_attachments:
+                        if include_attachment_meta:
                             attachment_metas = atts
 
                         if plain_ref is not None:
@@ -480,6 +481,45 @@ class IMAPClient:
                         if html_ref is not None:
                             mime_b, body_b = self._fetch_section_mime_and_body(conn, uid=r.uid, section=html_ref.part)
                             html = self._decode_section(mime_bytes=mime_b, body_bytes=body_b)
+                        
+                        if html and attachment_metas:
+                            def _fetch_bytes(part: str) -> bytes:
+                                # Use the existing conn to avoid lock reentry and extra reconnect logic.
+                                # (This duplicates fetch_attachment logic but keeps it in-process.)
+                                typ, mime_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}.MIME])")
+                                if typ != "OK" or not mime_data:
+                                    raise IMAPError(f"FETCH attachment MIME failed uid={r.uid} part={part}: {mime_data}")
+
+                                mime_bytes2 = None
+                                for item in mime_data:
+                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
+                                        mime_bytes2 = bytes(item[1])
+                                        break
+
+                                cte = None
+                                if mime_bytes2:
+                                    msg = BytesParser(policy=default_policy).parsebytes(mime_bytes2)
+                                    cte = msg.get("Content-Transfer-Encoding")
+
+                                typ, body_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}])")
+                                if typ != "OK" or not body_data:
+                                    raise IMAPError(f"FETCH attachment failed uid={r.uid} part={part}: {body_data}")
+
+                                payload = None
+                                for item in body_data:
+                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
+                                        payload = bytes(item[1])
+                                        break
+                                if payload is None:
+                                    raise IMAPError(f"Attachment payload not found uid={r.uid} part={part}")
+
+                                return decode_transfer(payload, cte)
+
+                            html = inline_cids_as_data_uris(
+                                html=html,
+                                attachment_metas=attachment_metas,
+                                fetch_part_bytes=_fetch_bytes,
+                            )
 
                     except Exception:
                         # Best-effort: headers still returned; bodies left empty.
@@ -490,14 +530,14 @@ class IMAPClient:
                     header_bytes,
                     text=text,
                     html=html,
-                    attachments=attachment_metas if include_attachments else [],
+                    attachments=attachment_metas if include_attachment_meta else [],
                     internaldate_raw=internaldate_raw if isinstance(internaldate_raw, str) else None,
                 )
                 out.append(msg)
 
             return out
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     # -----------------------
     # FETCH overview
@@ -546,14 +586,14 @@ class IMAPClient:
                     continue
 
                 meta = meta_raw.decode(errors="ignore")
-                payload = item[1] if len(item) > 1 else None
+                payload, used_next = _extract_payload_from_fetch_item(item, data, i)
 
                 m_uid = UID_RE.search(meta)
                 if m_uid:
                     current_uid = int(m_uid.group(1))
 
                 if current_uid is None:
-                    i += 1
+                    i += 2 if used_next else 1
                     continue
 
                 bucket = partial.setdefault(
@@ -574,7 +614,7 @@ class IMAPClient:
                 if isinstance(payload, (bytes, bytearray)):
                     bucket["headers"] = bytes(payload)
 
-                i += 1
+                i += 2 if used_next else 1
 
             overviews: List[EmailOverview] = []
             for r in refs:
@@ -597,7 +637,7 @@ class IMAPClient:
 
             return overviews
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     # -----------------------
     # Attachment fetch
@@ -641,7 +681,7 @@ class IMAPClient:
 
             return decode_transfer(payload, cte)
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     # -----------------------
     # Mutations
@@ -686,7 +726,7 @@ class IMAPClient:
 
         ref = self._run_with_conn(_impl)  # type: ignore[assignment]
         self._invalidate_search_cache(mailbox)
-        return ref  # type: ignore[return-value]
+        return ref
 
     def add_flags(self, refs: Sequence[EmailRef], *, flags: Set[str]) -> None:
         self._store(refs, mode="+FLAGS", flags=flags)
@@ -746,18 +786,23 @@ class IMAPClient:
 
             return mailboxes
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     def mailbox_status(self, mailbox: str = "INBOX") -> Dict[str, int]:
         def _impl(conn: imaplib.IMAP4) -> Dict[str, int]:
             imap_mailbox = self._format_mailbox_arg(mailbox)
-            typ, data = conn.status(imap_mailbox, "(MESSAGES UNSEEN)")
+
+            typ, data = conn.status(
+                imap_mailbox,
+                "(MESSAGES UNSEEN UIDNEXT UIDVALIDITY HIGHESTMODSEQ)",
+            )
             if typ != "OK":
                 raise IMAPError(f"STATUS {mailbox!r} failed: {data}")
             if not data or not data[0]:
                 raise IMAPError(f"STATUS {mailbox!r} returned empty data")
 
-            s = data[0].decode(errors="ignore") if isinstance(data[0], bytes) else str(data[0])
+            raw = data[0]
+            s = raw.decode(errors="ignore") if isinstance(raw, bytes) else str(raw)
 
             start = s.find("(")
             end = s.rfind(")")
@@ -766,6 +811,7 @@ class IMAPClient:
 
             payload = s[start + 1 : end]
             tokens = payload.split()
+
             status: Dict[str, int] = {}
 
             for i in range(0, len(tokens) - 1, 2):
@@ -779,12 +825,18 @@ class IMAPClient:
                     status["messages"] = val
                 elif key == "UNSEEN":
                     status["unseen"] = val
+                elif key == "UIDNEXT":
+                    status["uidnext"] = val
+                elif key == "UIDVALIDITY":
+                    status["uidvalidity"] = val
+                elif key == "HIGHESTMODSEQ":
+                    status["highestmodseq"] = val
                 else:
                     status[key.lower()] = val
 
             return status
 
-        return self._run_with_conn(_impl)  # type: ignore[return-value]
+        return self._run_with_conn(_impl)
 
     def move(self, refs: Sequence[EmailRef], *, src_mailbox: str, dst_mailbox: str) -> None:
         if not refs:

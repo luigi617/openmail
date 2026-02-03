@@ -96,15 +96,6 @@ def _find_disposition_filename(dispo: Any) -> Optional[str]:
     return params.get("filename") or params.get("name")
 
 
-def _leaf_is_attachment(node: list) -> bool:
-    if not isinstance(node, list) or len(node) < 7:
-        return False
-    params = _parse_param_list(node[2])
-    dispo = node[8] if len(node) > 8 else None
-    disp_filename = _find_disposition_filename(dispo)
-    return bool(disp_filename or ("name" in params))
-
-
 def _leaf_size(node: list) -> int:
     try:
         return int(node[6])
@@ -126,9 +117,114 @@ def _leaf_charset(node: list) -> Optional[str]:
 
 def _leaf_filename(node: list) -> str:
     params = _parse_param_list(node[2]) if len(node) > 2 else {}
-    dispo = node[8] if len(node) > 8 else None
+    dispo = _leaf_disposition(node)
     fn = _find_disposition_filename(dispo) or params.get("name")
     return fn or "attachment"
+
+
+def _leaf_content_id(node: list) -> Optional[str]:
+    """
+    BODYSTRUCTURE body-fld-id is typically at index 3 for leaf parts:
+      ... SP body-fld-id SP body-fld-desc ...
+    Servers often return NIL if absent.
+    """
+    try:
+        cid = node[3]
+        if cid is None:
+            return None
+        cid_str = str(cid)
+        if cid_str.upper() == "NIL":
+            return None
+        cid_str = cid_str.strip().strip("<>").strip()
+        return cid_str or None
+    except Exception:
+        return None
+
+
+def _leaf_content_location(node: list) -> Optional[str]:
+    """
+    Some servers include body-fld-md5 at node[5], but Content-Location is not
+    a standard BODYSTRUCTURE field. However, some servers stash it in
+    "body-ext-1part" params (rare). We try to find it in any param list.
+    If not found, return None.
+    """
+    # Try leaf params (node[2]) first
+    try:
+        params = _parse_param_list(node[2]) if len(node) > 2 else {}
+        # Not standard, but some providers may place it here
+        for k in ("content-location", "content_location", "location"):
+            if k in params:
+                return str(params[k]).strip() or None
+    except Exception:
+        pass
+
+    # Then try disposition params if present
+    dispo = _leaf_disposition(node)
+    if isinstance(dispo, list) and len(dispo) > 1:
+        dparams = _parse_param_list(dispo[1])
+        for k in ("content-location", "content_location", "location"):
+            if k in dparams:
+                return str(dparams[k]).strip() or None
+
+    return None
+
+
+def _leaf_disposition(node: list) -> Optional[list]:
+    """
+    Disposition lives in body-ext-1part and its index differs between
+    text vs non-text leafs. Find it structurally instead.
+    Expected form: ("INLINE" params) or ("ATTACHMENT" params)
+    """
+    if not isinstance(node, list):
+        return None
+    for el in node:
+        if isinstance(el, list) and el:
+            head = str(el[0]).upper()
+            if head in ("INLINE", "ATTACHMENT"):
+                return el
+    return None
+
+
+def _leaf_disposition_kind(node: list) -> Optional[str]:
+    dispo = _leaf_disposition(node)
+    if not (isinstance(dispo, list) and dispo):
+        return None
+    head = str(dispo[0]).strip().lower()
+    if head in ("inline", "attachment"):
+        return head
+    return head or None
+
+
+def _leaf_is_inline_image(node: list) -> bool:
+    ctype = _leaf_content_type(node)
+    if not ctype.startswith("image/"):
+        return False
+    dispo_kind = _leaf_disposition_kind(node) or ""
+    # Many inline images have no filename; CID is the key signal.
+    return bool(_leaf_content_id(node) or dispo_kind == "inline")
+
+
+def _leaf_is_attachment(node: list) -> bool:
+    """
+    "Attachment" for our purposes includes:
+      - traditional attachments (filename/name)
+      - inline images that we must fetch to resolve cid: links
+    """
+    if not isinstance(node, list) or len(node) < 7:
+        return False
+
+    params = _parse_param_list(node[2]) if len(node) > 2 else {}
+    dispo = _leaf_disposition(node)
+    disp_filename = _find_disposition_filename(dispo)
+
+    if disp_filename or ("name" in params):
+        return True
+
+    # Important: include CID inline images as "attachments" so HTML can resolve them.
+    if _leaf_is_inline_image(node):
+        return True
+
+    return False
 
 
 def extract_text_and_attachments(bodystructure: Any) -> Tuple[List[TextPartRef], List[AttachmentMeta]]:
@@ -161,6 +257,10 @@ def extract_text_and_attachments(bodystructure: Any) -> Tuple[List[TextPartRef],
                 return
 
             if _leaf_is_attachment(node):
+                cid = _leaf_content_id(node)
+                dispo_kind = _leaf_disposition_kind(node)  # "inline"/"attachment"/None
+                is_inline = _leaf_is_inline_image(node) or (dispo_kind == "inline")
+
                 atts.append(
                     AttachmentMeta(
                         idx=len(atts),
@@ -168,6 +268,11 @@ def extract_text_and_attachments(bodystructure: Any) -> Tuple[List[TextPartRef],
                         filename=_leaf_filename(node),
                         content_type=ctype,
                         size=_leaf_size(node),
+                        # NEW FIELDS
+                        content_id=cid,
+                        disposition=dispo_kind,
+                        is_inline=is_inline,
+                        content_location=_leaf_content_location(node),
                     )
                 )
                 return

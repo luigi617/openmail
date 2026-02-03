@@ -105,12 +105,12 @@ class EmailManager:
         self,
         ref: EmailRef,
         *,
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
     ) -> EmailMessage:
         """
         Fetch exactly one EmailMessage by EmailRef.
         """
-        msgs = self.imap.fetch([ref], include_attachments=include_attachments)
+        msgs = self.imap.fetch([ref], include_attachment_meta=include_attachment_meta)
         if not msgs:
             raise ValueError(f"No message found for ref: {ref!r}")
         return msgs[0]
@@ -132,14 +132,14 @@ class EmailManager:
         self,
         refs: Sequence[EmailRef],
         *,
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
     ) -> List[EmailMessage]:
         """
         Fetch multiple EmailMessage by EmailRef.
         """
         if not refs:
             return []
-        return list(self.imap.fetch(refs, include_attachments=include_attachments))
+        return list(self.imap.fetch(refs, include_attachment_meta=include_attachment_meta))
 
     def send(self, msg: PyEmailMessage) -> SendResult:
         recipients = self._extract_envelope_recipients(msg)
@@ -428,7 +428,6 @@ class EmailManager:
 
         return self.send(msg)
 
-
     def forward(
         self,
         original: EmailMessage,
@@ -526,7 +525,7 @@ class EmailManager:
         mailbox: str = "INBOX",
         n: int = 50,
         unseen_only: bool = False,
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
         before_uid: Optional[int] = None,
         after_uid: Optional[int] = None,
         refresh: bool = False,
@@ -546,7 +545,7 @@ class EmailManager:
             before_uid=before_uid,
             after_uid=after_uid,
             refresh=refresh,
-            include_attachments=include_attachments,
+            include_attachment_meta=include_attachment_meta,
         )
         return page, messages
 
@@ -555,7 +554,7 @@ class EmailManager:
         root: EmailMessage,
         *,
         mailbox: str = "INBOX",
-        include_attachments: bool = False,
+        include_attachment_meta: bool = False,
     ) -> List[EmailMessage]:
         """
         Fetch messages belonging to the same thread as `root`.
@@ -569,7 +568,7 @@ class EmailManager:
             .limit(200)
         )
 
-        _, msgs = q.fetch(include_attachments=include_attachments)
+        _, msgs = q.fetch(include_attachment_meta=include_attachment_meta)
 
         # Ensure root is present exactly once
         mid = root.message_id

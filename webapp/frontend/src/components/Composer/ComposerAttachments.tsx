@@ -1,6 +1,5 @@
 // src/components/Composer/ComposerAttachments.tsx
-import React from "react";
-import closeIcon from "@/assets/svg/close.svg";
+import CloseIcon from "@/assets/svg/close.svg?react";
 
 export type ComposerAttachmentsProps = {
   files: File[];
@@ -32,7 +31,7 @@ export default function ComposerAttachments(props: ComposerAttachmentsProps) {
               props.onRemove(idx);
             }}
           >
-            <img src={closeIcon} alt="" aria-hidden="true" className="icon-img" />
+            <CloseIcon className="icon" aria-hidden />
           </button>
         </div>
       ))}

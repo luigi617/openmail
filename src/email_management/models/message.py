@@ -44,7 +44,8 @@ class EmailMessage:
     attachments: List[Attachment] = field(default_factory=list)
 
     # IMAP metadata
-    date: Optional[datetime] = None
+    received_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
     message_id: Optional[str] = None
     headers: Dict[str, str] = field(default_factory=dict)
 
@@ -54,7 +55,7 @@ class EmailMessage:
             f"subject={self.subject!r}, "
             f"from={self.from_email!r}, "
             f"to={list(self.to)!r}, "
-            f"date={self.date!r})"
+            f"received_at={self.received_at!r})"
             f"attachments={len(self.attachments)})"
         )
     
@@ -69,7 +70,8 @@ class EmailMessage:
             "text": self.text,
             "html": self.html,
             "attachments": [att.to_dict() for att in self.attachments],
-            "date": self.date.isoformat() if self.date else None,
+            "received_at": self.received_at.isoformat() if self.received_at else None,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
             "message_id": self.message_id,
             "headers": self.headers,
         }
@@ -82,7 +84,8 @@ class EmailOverview:
     to: Sequence[EmailAddress]
     flags: Set[str]
     headers: Dict[str, str]
-    date: Optional[datetime] = None
+    received_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
 
     def __repr__(self) -> str:
         return (
@@ -90,7 +93,7 @@ class EmailOverview:
             f"subject={self.subject!r}, "
             f"from={self.from_email!r}, "
             f"to={list(self.to)!r}, "
-            f"date={self.date!r})"
+            f"received_at={self.received_at!r})"
         )
     def to_dict(self) -> dict:
         return {
@@ -100,5 +103,6 @@ class EmailOverview:
             "to": [addr.to_dict() for addr in self.to],
             "flags": list(self.flags),
             "headers": self.headers,
-            "date": self.date.isoformat() if self.date else None,
+            "received_at": self.received_at.isoformat() if self.received_at else None,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
         }

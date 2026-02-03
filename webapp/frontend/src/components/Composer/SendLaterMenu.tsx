@@ -1,5 +1,5 @@
 // src/components/Composer/SendLaterMenu.tsx
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { useClickOutside } from "../../hooks/useClickOutside";
 
 export type SendLaterMenuProps = {

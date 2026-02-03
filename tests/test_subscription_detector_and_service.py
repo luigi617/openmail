@@ -68,9 +68,9 @@ class RecordingFakeIMAPClient(FakeIMAPClient):
             refresh=refresh,
         )
 
-    def fetch(self, refs, *, include_attachments: bool = False):
-        self.fetch_calls.append((list(refs), include_attachments))
-        return super().fetch(refs, include_attachments=include_attachments)
+    def fetch(self, refs, *, include_attachment_meta: bool = False):
+        self.fetch_calls.append((list(refs), include_attachment_meta))
+        return super().fetch(refs, include_attachment_meta=include_attachment_meta)
 
 
 def _mk_email_message(*, subject: str, from_email: str, headers: dict) -> EmailMessage:
@@ -186,8 +186,8 @@ def test_subscription_detector_builds_candidates_and_uses_query(monkeypatch):
 
     # fetch called once with the refs returned by search_page_cached
     assert len(imap.fetch_calls) == 1
-    fetched_refs, include_attachments = imap.fetch_calls[0]
-    assert include_attachments is False
+    fetched_refs, include_attachment_meta = imap.fetch_calls[0]
+    assert include_attachment_meta is False
     assert set(fetched_refs) == {ref1, ref2, ref3}
 
 

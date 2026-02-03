@@ -5,6 +5,7 @@ export type OverviewParams = {
   mailbox?: string;
   limit?: number;
   search_query?: string;
+  search_mode?: string;
   cursor?: string;
   accounts?: string[];
 };
@@ -13,7 +14,6 @@ export type OverviewResponse<TEmail> = {
   data: TEmail[];
   meta?: {
     next_cursor?: string | null;
-    prev_cursor?: string | null;
     result_count?: number | null;
     total_count?: number | null;
   };

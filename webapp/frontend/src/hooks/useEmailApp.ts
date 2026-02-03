@@ -32,6 +32,31 @@ function sameArray(a: string[], b: string[]) {
   return true;
 }
 
+function mergeUniqueById(prev: EmailOverview[], next: EmailOverview[]) {
+    const seen = new Set<string>();
+    const out: EmailOverview[] = [];
+
+    for (const e of prev) {
+      const id = getEmailId(e);
+      if (!id) continue;
+      if (!seen.has(id)) {
+        seen.add(id);
+        out.push(e);
+      }
+    }
+
+    for (const e of next) {
+      const id = getEmailId(e);
+      if (!id) continue;
+      if (!seen.has(id)) {
+        seen.add(id);
+        out.push(e);
+      }
+    }
+
+    return out;
+}
+
 export function useEmailAppCore() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -63,7 +88,6 @@ export function useEmailAppCore() {
     () => (mailboxParam.trim() ? mailboxParam.trim() : DEFAULT_MAILBOX)
   );
 
-  const [searchText, setSearchText] = useState<string>(() => urlQuery);
   const [appliedSearchText, setAppliedSearchText] = useState<string>(() => urlQuery);
 
   // If state update originated from URL navigation, skip writing it back once
@@ -87,11 +111,10 @@ export function useEmailAppCore() {
 
     if (queryChanged) {
       setAppliedSearchText(nextQuery);
-      setSearchText(nextQuery);
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountsParam, mailboxParam]); // intentionally depend on raw strings
+  }, [accountsParam, mailboxParam, qParam]); // intentionally depend on raw strings
 
   // state -> URL (single writer for both params)
   useEffect(() => {
@@ -149,11 +172,10 @@ export function useEmailAppCore() {
   // overview + paging (cursor-based)
   const [emails, setEmails] = useState<EmailOverview[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [prevCursor, setPrevCursor] = useState<string | null>(null);
 
   const pageSize = 50;
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalEmails, setTotalEmails] = useState<number>(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // selection + detail
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -196,7 +218,7 @@ export function useEmailAppCore() {
     try {
       setListError("");
       // backend returns: { [account: string]: string[] }
-      const data = (await EmailApi.getMailboxes()) as unknown as MailboxData;
+      const data = await EmailApi.getMailboxes();
       setMailboxData(data || {});
     } catch (e) {
       console.error("Error fetching mailboxes:", e);
@@ -205,79 +227,70 @@ export function useEmailAppCore() {
   }, []);
 
   const fetchOverview = useCallback(
-    async (direction: null | "next" | "prev" = null) => {
+    async (direction: null | "next" = null) => {
       try {
         setListError("");
-
-        // Decide cursor usage
-        let useCursor: string | undefined;
-
+        
         if (direction === "next") {
+          if (isLoadingMore) return;
           if (!nextCursor) return;
-          useCursor = nextCursor;
-        } else if (direction === "prev") {
-          if (!prevCursor) return;
-          useCursor = prevCursor;
+          setIsLoadingMore(true);
         } else {
-          useCursor = undefined;
-          setCurrentPage(1);
+          // fresh load
+          setNextCursor(null);
         }
 
-        const hasQuerySearch = Boolean(appliedSearchText?.trim());
-        
+        const useCursor = direction === "next" ? nextCursor ?? undefined : undefined;        
 
-        const payload = await EmailApi.getOverview<EmailOverview>({
-          mailbox: hasQuerySearch ? "INBOX" : currentMailbox,
+        const payload = await EmailApi.getOverview({
+          mailbox: currentMailbox,
           limit: pageSize,
-          search_query: hasQuerySearch ? appliedSearchText.trim() : undefined,
+          search_query: appliedSearchText.trim() ? appliedSearchText.trim() : undefined,
           cursor: useCursor,
-          accounts: (hasQuerySearch || useCursor)
+          accounts: useCursor
             ? undefined
             : filterAccounts.length
             ? [...filterAccounts]
             : undefined,
         });
+        
 
         const list = Array.isArray(payload.data) ? payload.data : [];
         const meta = payload.meta ?? {};
 
-        setEmails(list);
+        if (direction === "next") {
+          setEmails((prev) => mergeUniqueById(prev, list));
+        } else {
+          setEmails(list);
+          setSelectedId(null);
+          setSelectedMessage(null);
+          setSelectedOverview(null);
+        }
 
         // reset selection on new list
-        setSelectedId(null);
-        setSelectedOverview(null);
-        setSelectedMessage(null);
         setDetailError("");
 
         setNextCursor(meta.next_cursor ?? null);
-        setPrevCursor(meta.prev_cursor ?? null);
-
-        setCurrentPage((prev) => {
-          if (direction === "next") return prev + 1;
-          if (direction === "prev") return Math.max(1, prev - 1);
-          return 1;
-        });
 
         const total =
           typeof meta.total_count === "number" ? meta.total_count : undefined;
         if (typeof total === "number" && total >= 0) {
-          setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
-        } else {
-          setTotalPages((p) => Math.max(1, p || 1));
+          setTotalEmails(total);
         }
       } catch (e) {
         console.error("Error fetching overview:", e);
-        setEmails([]);
+        if (direction !== "next") setEmails([]);
         setListError("Failed to fetch emails.");
+      } finally {
+        setIsLoadingMore(false);
       }
     },
-    [currentMailbox, pageSize, nextCursor, prevCursor, filterAccounts, appliedSearchText]
+    [currentMailbox, pageSize, nextCursor, filterAccounts, appliedSearchText, isLoadingMore]
   );
 
-  const applySearch = useCallback(() => {
-    const next = searchText.trim();
-    setAppliedSearchText(next);
-  }, [searchText]);
+  const applySearch = useCallback((q: string) => {
+    setAppliedSearchText(q.trim());
+  }, []);
 
   const fetchEmailMessage = useCallback(
     async (overview: EmailOverview) => {
@@ -294,11 +307,12 @@ export function useEmailAppCore() {
         setDetailError("");
         setSelectedMessage(null);
 
-        const msg = await EmailApi.getEmail<EmailMessage>({
+        const msg = await EmailApi.getEmail({
           account: String(account),
           mailbox: String(mailbox),
           uid: uid,
         });
+        
 
         setSelectedMessage(msg);
       } catch (e) {
@@ -358,14 +372,11 @@ export function useEmailAppCore() {
     setFilterAccounts,
 
     emails,
-    pageSize,
-    currentPage,
-    totalPages,
     nextCursor,
-    prevCursor,
+    totalEmails,
+    isLoadingMore,
 
-    searchText,
-    setSearchText,
+    appliedSearchText,
     applySearch,
 
     selectedId,

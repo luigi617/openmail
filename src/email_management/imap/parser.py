@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 import email
 import quopri
 from email import policy
@@ -16,6 +17,20 @@ from email_management.models import Attachment, EmailAddress, EmailMessage, Emai
 from email_management.types import EmailRef
 from email_management.utils import best_effort_date
 
+_INTERNALDATE_FMTS = [
+    "%d-%b-%Y %H:%M:%S %z",  # standard INTERNALDATE
+]
+
+def parse_internaldate(internaldate_raw: Optional[str]) -> Optional[datetime]:
+    if not internaldate_raw:
+        return None
+    s = internaldate_raw.strip().strip('"')
+    for fmt in _INTERNALDATE_FMTS:
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            pass
+    return None
 
 def _decode_header_value(value: Optional[str]) -> str:
     if not value:
@@ -99,6 +114,15 @@ def _extract_parts(msg: PyMessage) -> Tuple[Optional[str], Optional[str], List[A
 
             payload = part.get_payload(decode=True) or b""
 
+            content_id = part.get("Content-ID")
+            if content_id:
+                content_id = content_id.strip().strip("<>").strip() or None
+
+            is_inline_image = (
+                ctype.startswith("image/")
+                and (("inline" in disp) or bool(content_id))
+            )
+
             # Attachment (explicit disposition or filename)
             if filename or "attachment" in disp:
                 atts.append(
@@ -108,6 +132,9 @@ def _extract_parts(msg: PyMessage) -> Tuple[Optional[str], Optional[str], List[A
                         content_type=ctype,
                         data=payload,
                         size=len(payload),
+                        content_id=content_id,
+                        disposition=("inline" if is_inline_image else ("attachment" if "attachment" in disp else None)),
+                        is_inline=is_inline_image,
                     )
                 )
                 attachment_idx += 1
@@ -197,7 +224,8 @@ def parse_headers_and_bodies(
 
         headers: Dict[str, str] = {k: _decode_header_value(str(v)) for k, v in msg_headers.items()}
         raw_date = msg_headers.get("Date")
-        msg_date = best_effort_date(raw_date, internaldate_raw)
+        received_at = parse_internaldate(internaldate_raw)
+        sent_at = best_effort_date(raw_date, None)
 
         return EmailMessage(
             ref=ref,
@@ -209,7 +237,8 @@ def parse_headers_and_bodies(
             text=text or None,
             html=html or None,
             attachments=attachments,
-            date=msg_date,
+            received_at=received_at,
+            sent_at=sent_at,
             message_id=_decode_header_value(msg_headers.get("Message-ID")),
             headers=headers,
         )
@@ -245,7 +274,9 @@ def parse_overview(
             for k, v in msg_headers.items():
                 headers[k] = _decode_header_value(str(v))
 
-        date = best_effort_date(date_header_raw, internaldate_raw)
+        received_at = parse_internaldate(internaldate_raw)
+        sent_at = best_effort_date(date_header_raw, None)
+
 
         return EmailOverview(
             ref=ref,
@@ -253,7 +284,8 @@ def parse_overview(
             from_email=from_addr or EmailAddress(email="", name=None),
             to=to_addrs,
             flags=flags,
-            date=date,
+            received_at=received_at,
+            sent_at=sent_at,
             headers=headers,
         )
     except Exception as e:

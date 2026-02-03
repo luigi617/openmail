@@ -28,8 +28,8 @@ class FakeImap:
         # EmailQuery expects newest-first refs; tests can treat them as opaque.
         return PagedSearchResult(refs=["ref-1", "ref-2"])
 
-    def fetch(self, refs, *, include_attachments: bool = False):
-        self.fetch_calls.append((refs, include_attachments))
+    def fetch(self, refs, *, include_attachment_meta: bool = False):
+        self.fetch_calls.append((refs, include_attachment_meta))
         return ["msg-1", "msg-2"]
 
     def fetch_overview(self, refs):
@@ -348,7 +348,7 @@ def test_fetch_calls_search_then_fetch():
     mgr = FakeEmailManager()
     easy = EmailQuery(mgr, mailbox="INBOX")
 
-    page, msgs = easy.fetch(include_attachments=True)
+    page, msgs = easy.fetch(include_attachment_meta=True)
 
     assert page.refs == ["ref-1", "ref-2"]
     assert msgs == ["msg-1", "msg-2"]
@@ -356,9 +356,9 @@ def test_fetch_calls_search_then_fetch():
     assert len(mgr.imap.search_page_cached_calls) == 1
     assert len(mgr.imap.fetch_calls) == 1
 
-    refs, include_attachments = mgr.imap.fetch_calls[0]
+    refs, include_attachment_meta = mgr.imap.fetch_calls[0]
     assert refs == ["ref-1", "ref-2"]
-    assert include_attachments is True
+    assert include_attachment_meta is True
 
 
 def test_fetch_overview_calls_search_then_fetch_overview():

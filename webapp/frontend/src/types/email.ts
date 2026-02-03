@@ -1,13 +1,14 @@
 // src/types/email.ts
 import type { EmailRef } from "./shared";
 
-export type Mailbox = {
-  id: number;
-  name: string;
+export type MailboxStatus = {
+  messages?: number;
+  unseen?: number;
+  [k: string]: number | undefined;
 };
 
 // account -> mailbox names (or ids) list
-export type MailboxData = Record<string, string[]>;
+export type MailboxData = Record<string, Record<string, MailboxStatus>>;
 
 export type LegendAccount = {
   id: number;
@@ -26,6 +27,10 @@ export type Attachment = {
   filename: string;
   content_type: string;
   size: number;
+  content_id: string;
+  disposition: string;
+  is_inline: boolean;
+  content_location: string;
 };
 
 export type EmailOverview = {
@@ -35,7 +40,8 @@ export type EmailOverview = {
   to: EmailAddress[];
   flags: string[];
   headers: Record<string, string>;
-  date?: string | null;
+  received_at?: string | null;
+  sent_at?: string | null;
 };
 
 export type EmailMessage = {
@@ -50,7 +56,8 @@ export type EmailMessage = {
   attachments: Attachment[];
 
   // IMAP metadata
-  date?: string | null;
+  received_at?: string | null;
+  sent_at?: string | null;
   message_id?: string | null;
   headers: Record<string, string>;
 

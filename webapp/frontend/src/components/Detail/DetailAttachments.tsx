@@ -1,13 +1,13 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { Attachment } from "../../types/email";
-import downloadIcon from "../../assets/svg/download.svg";
+import DownloadIcon from "../../assets/svg/download.svg?react";
 
 export type DetailAttachmentsProps = {
   attachments?: (Attachment | null | undefined)[] | null;
   // Needed to build the EmailRef link
   account: string;
   mailbox: string;
-  email_id: number; // uid
+  email_id: number;
 };
 
 function formatBytes(bytes: number): string {
@@ -72,8 +72,11 @@ function triggerDownload(url: string) {
 export default function DetailAttachments(props: DetailAttachmentsProps) {
   const attachments = useMemo(() => {
     const a = props.attachments ?? [];
-    return Array.isArray(a) ? a.filter(Boolean) as Attachment[] : [];
+    return Array.isArray(a)
+      ? (a.filter(att => att && !att.is_inline) as Attachment[])
+      : [];
   }, [props.attachments]);
+
 
   if (attachments.length === 0) return null;
 
@@ -142,7 +145,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
                   aria-label={`Download ${fullName}`}
                   title={`Download ${fullName}`}
                 >
-                  <img src={downloadIcon} alt="" aria-hidden="true" className="icon-img" />
+                  <DownloadIcon className="icon" aria-hidden />
                 </a>
               ) : (
                 <button
@@ -152,7 +155,7 @@ export default function DetailAttachments(props: DetailAttachmentsProps) {
                   aria-label={`Download ${fullName}`}
                   title="No attachment part available"
                 >
-                  <img src={downloadIcon} alt="" aria-hidden="true" className="icon-img" />
+                  <DownloadIcon className="icon" aria-hidden />
                 </button>
               )}
             </div>
