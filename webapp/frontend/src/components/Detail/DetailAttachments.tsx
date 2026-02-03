@@ -24,13 +24,11 @@ function formatBytes(bytes: number): string {
 }
 
 function safeFilename(name: string) {
-  const cleaned = name.replace(/[<>:"/\\|?*]/g, "_").trim();
+  const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').trim();
 
-  const withoutControls = Array.from(cleaned, (ch) =>
-    ch.charCodeAt(0) < 32 ? "_" : ch
-  ).join("");
+  const withoutControls = Array.from(cleaned, (ch) => (ch.charCodeAt(0) < 32 ? '_' : ch)).join('');
 
-  return withoutControls || "attachment";
+  return withoutControls || 'attachment';
 }
 
 function buildDownloadUrl(params: {

@@ -45,7 +45,7 @@ function insertHtmlAtSelection(html: string) {
 
   const frag = document.createDocumentFragment();
   let node: ChildNode | null;
-   
+
   while ((node = temp.firstChild)) frag.appendChild(node);
 
   const lastNode = frag.lastChild;

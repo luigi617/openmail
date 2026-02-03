@@ -95,7 +95,9 @@ export default function MailboxTree(props: MailboxTreeProps) {
                 {mailboxItems.map(({ name, unseen }) => {
                   // Old rule: when no filterAccounts, only “All inboxes” is active
                   const isActive =
-                    name === currentMailbox && activeAccounts.size > 0 && activeAccounts.has(account);
+                    name === currentMailbox &&
+                    activeAccounts.size > 0 &&
+                    activeAccounts.has(account);
 
                   return (
                     <div
@@ -107,8 +109,7 @@ export default function MailboxTree(props: MailboxTreeProps) {
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ')
-                          onSelectMailbox(account, name);
+                        if (e.key === 'Enter' || e.key === ' ') onSelectMailbox(account, name);
                       }}
                     >
                       <span className="mailbox-dot" />

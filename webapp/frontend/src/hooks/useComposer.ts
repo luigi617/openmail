@@ -408,8 +408,7 @@ export function useComposer(args: {
 
     const attachments = state.attachments;
 
-    const draftsMailbox =
-      guessDraftsMailbox(Object.keys(mailboxData[fromAccount])) ?? 'Drafts';
+    const draftsMailbox = guessDraftsMailbox(Object.keys(mailboxData[fromAccount])) ?? 'Drafts';
 
     try {
       await EmailApi.saveDraft({

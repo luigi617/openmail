@@ -48,7 +48,7 @@ export default function MiddleColumn(props: MiddleColumnProps) {
       {
         root: rootEl,
         threshold: 0,
-        rootMargin: "200px",
+        rootMargin: '200px',
       }
     );
 
