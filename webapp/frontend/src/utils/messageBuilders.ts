@@ -20,7 +20,7 @@ export function buildQuotedOriginalBodyHtml(overview: EmailOverview | null, msg:
   const fromObj = msg?.from_email || overview?.from_email;
   const who = senderLabel(fromObj);
 
-  const dateVal = msg?.date || overview?.date;
+  const dateVal = msg?.received_at || overview?.received_at;
   let headerLine = "";
 
   if (dateVal) {
@@ -52,7 +52,7 @@ export function buildForwardedOriginalBodyHtml(overview: EmailOverview | null, m
   const fromObj = msg?.from_email || overview?.from_email;
   const who = senderLabel(fromObj);
 
-  const dateVal = msg?.date || overview?.date;
+  const dateVal = msg?.received_at || overview?.received_at;
   let dateLine = "";
   if (dateVal) {
     const d = new Date(dateVal as any);

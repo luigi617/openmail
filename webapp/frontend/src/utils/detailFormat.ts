@@ -10,7 +10,7 @@ export function getDetailHeader(overview: EmailOverview | null, msg: EmailMessag
   const toList = msg?.to || overview?.to || [];
   const toAddr = formatAddressList(toList);
 
-  const dateVal = msg?.date || overview?.date;
+  const dateVal = msg?.received_at || overview?.received_at;
   const dateVerbose = formatDate(dateVal, true);
 
   return {

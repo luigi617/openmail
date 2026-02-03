@@ -80,6 +80,12 @@ export default function App() {
     }
   }, [composer.state.open, composer.state.mode]);
 
+  const loadMore = () => {
+    if (!core.nextCursor) return;
+    if (core.isLoadingMore) return;
+    void core.fetchOverview("next");
+  };
+  
   return (
     <>
       <Layout
@@ -112,10 +118,11 @@ export default function App() {
           },
         }}
         middle={{
-          page: core.currentPage,
-          pageCount: core.totalPages,
-          onPrevPage: () => void core.fetchOverview("prev"),
-          onNextPage: () => void core.fetchOverview("next"),
+          onLoadMore: loadMore,
+          hasMore: Boolean(core.nextCursor),
+          isLoadingMore: core.isLoadingMore,
+          totalEmails: core.totalEmails,
+
           onCompose: () => {
             setComposerExtraMenuOpen(false);
             setSendLaterOpen(false);

@@ -546,14 +546,14 @@ class IMAPClient:
                     continue
 
                 meta = meta_raw.decode(errors="ignore")
-                payload = item[1] if len(item) > 1 else None
+                payload, used_next = _extract_payload_from_fetch_item(item, data, i)
 
                 m_uid = UID_RE.search(meta)
                 if m_uid:
                     current_uid = int(m_uid.group(1))
 
                 if current_uid is None:
-                    i += 1
+                    i += 2 if used_next else 1
                     continue
 
                 bucket = partial.setdefault(
@@ -574,7 +574,7 @@ class IMAPClient:
                 if isinstance(payload, (bytes, bytearray)):
                     bucket["headers"] = bytes(payload)
 
-                i += 1
+                i += 2 if used_next else 1
 
             overviews: List[EmailOverview] = []
             for r in refs:

@@ -36,7 +36,8 @@ export type EmailOverview = {
   to: EmailAddress[];
   flags: string[];
   headers: Record<string, string>;
-  date?: string | null;
+  received_at?: string | null;
+  sent_at?: string | null;
 };
 
 export type EmailMessage = {
@@ -51,7 +52,8 @@ export type EmailMessage = {
   attachments: Attachment[];
 
   // IMAP metadata
-  date?: string | null;
+  received_at?: string | null;
+  sent_at?: string | null;
   message_id?: string | null;
   headers: Record<string, string>;
 

@@ -578,12 +578,20 @@ button.primary:hover {
   gap: 0.55rem;
 }
 
-.page-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.list-count {
   font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
 }
+
+/* Optional: slightly stronger on hover (feels responsive without looking like a button) */
+.list-header-right .list-count {
+  opacity: 0.9;
+}
+
 
 .list-container {
   border-radius: 0;

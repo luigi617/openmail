@@ -92,7 +92,7 @@ class FakeIMAPClient:
             text=msg.text,
             html=msg.html,
             attachments=list(msg.attachments),
-            date=msg.date,
+            date=msg.received_at,
             message_id=msg.message_id,
             headers=dict(msg.headers),
         )
@@ -309,7 +309,7 @@ class FakeIMAPClient:
                         text=msg.text,
                         html=msg.html,
                         attachments=[],
-                        date=msg.date,
+                        date=msg.received_at,
                         message_id=msg.message_id,
                         headers=dict(msg.headers),
                     )
@@ -352,7 +352,7 @@ class FakeIMAPClient:
             _add("From", msg.headers.get("From") or msg.from_email)
             _add("To", msg.headers.get("To") or (", ".join(msg.to) if msg.to else ""))
             _add("Subject", msg.headers.get("Subject") or msg.subject)
-            _add("Date", msg.headers.get("Date") or (msg.date.isoformat() if msg.date else ""))
+            _add("Date", msg.headers.get("Date") or (msg.received_at.isoformat() if msg.received_at else ""))
             _add("Message-ID", msg.headers.get("Message-ID") or (msg.message_id or ""))
 
             # Preserve any other stored headers that might matter for tests (best-effort)

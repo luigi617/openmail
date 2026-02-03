@@ -1,12 +1,13 @@
 import io
 import mimetypes
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import unquote
+from starlette.middleware.gzip import GZipMiddleware
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Response, UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response, UploadFile
 from fastapi import Form, File
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +21,8 @@ from email_management.models import EmailMessage
 from email_service import parse_accounts
 from utils import uploadfiles_to_attachments, build_extra_headers, safe_filename
 from email_overview import build_email_overview
-from starlette.middleware.gzip import GZipMiddleware
+from ttl_cache import TTLCache
+
 
 BASE = Path(__file__).parent
 
@@ -43,6 +45,100 @@ app.add_middleware(
 
 ACCOUNTS: Dict[str, EmailManager] = parse_accounts(os.getenv("ACCOUNTS", ""))
 
+_MAILBOX_CACHE = TTLCache(ttl_seconds=60, maxsize=64)
+_MESSAGE_CACHE = TTLCache(ttl_seconds=600, maxsize=512)
+
+
+def _emails_equal(a: dict, b: dict) -> bool:
+    """
+    Compare two email overview dicts for identity using stable keys.
+    We compare the full dict as returned (data entries), but you can tighten
+    this to only compare refs (account+uid) if desired.
+    """
+    return a == b
+
+
+def _ref_key(item: dict) -> Tuple[str, int]:
+    """
+    Stable unique key for an email item. Assumes:
+      item["ref"]["account"] exists (we setdefault this in build_email_overview)
+      item["ref"]["uid"] exists (or is None)
+    """
+    ref = item.get("ref") or {}
+    acc = ref.get("account") or ""
+    uid = ref.get("uid")
+    # uid should be int; if missing, normalize to -1 so it still sorts/compares stably
+    return (str(acc), int(uid) if uid is not None else -1)
+
+@app.get("/api/test/overview")
+def test_email_overview() -> dict:
+    """
+    Test overview pagination consistency.
+
+    - Call build_email_overview 3x with limit=50 using cursor chaining to collect 150 newest
+    - Call build_email_overview 1x with limit=150 (first page)
+    - Compare whether the 150 items match (by stable ref keys and optionally by full payload)
+
+    Notes:
+    - This test assumes your paging logic is consistent across different limits.
+    - Because results can change between calls (new mail arriving), it's best run in a quiet mailbox.
+    """
+    mailbox = "INBOX"
+    search_query = None
+    search_mode = ""
+    l = 10
+    l_times = 50
+    # --------- Fetch 150 via 3 pages of 50 ---------
+    pages: List[dict] = []
+    cursor: Optional[str] = None
+    collected: List[dict] = []
+
+    for i in range(l_times):
+        resp = build_email_overview(
+            mailbox=mailbox,
+            limit=l,
+            search_query=search_query,
+            search_mode=search_mode,
+            cursor=cursor,
+            ACCOUNTS=ACCOUNTS,
+        )
+        pages.append(resp)
+
+        data = resp["data"]
+        collected.extend(data)
+
+        cursor = (resp.get("meta") or {}).get("next_cursor")
+
+        # Stop early if there's no next page or we got fewer than 50 (not enough emails)
+        if not cursor or len(data) < l:
+            break
+
+
+    # --------- Fetch 150 via single call ---------
+    resp_1 = build_email_overview(
+        mailbox=mailbox,
+        limit=l*l_times,
+        search_query=search_query,
+        search_mode=search_mode,
+        cursor=None,
+        ACCOUNTS=ACCOUNTS,
+    )
+    single_1 = resp_1["data"]
+
+    collected_keys = [_ref_key(x) for x in collected]
+    single_keys = [_ref_key(x) for x in single_1]
+
+    same_by_keys = collected_keys == single_keys
+    same_by_full_payload = _emails_equal(collected, single_1)
+
+    
+
+    return {
+        "ok": same_by_keys and (len(collected) == len(single_1) == l*l_times),
+        "same_by_keys": same_by_keys,
+        "same_by_full_payload": same_by_full_payload,
+    }
+
 
 @app.get("/api/emails/overview")
 def get_email_overview(
@@ -51,6 +147,11 @@ def get_email_overview(
     search_query: Optional[str] = Query(
         default=None,
         description="Optional natural-language search query (will be converted to IMAP query).",
+    ),
+    search_mode: str = Query(
+        default="general",
+        description='Search mode: "general" (subject/from/to/text) or "ai" (LLM-derived IMAP).',
+        pattern="^(general|ai)$",
     ),
     cursor: Optional[str] = Query(
         default=None,
@@ -64,36 +165,36 @@ def get_email_overview(
 ) -> dict:
     """
     Multi-account email overview with per-account pagination.
-
-    Cursor format (opaque to clients, but documented here):
-        {
-          "direction": "next" | "prev",
-          "mailbox": "<mailbox>",
-          "accounts": {
-            "<account_id>": {
-              "next_before_uid": <int or null>,  # older-page anchor
-              "prev_after_uid": <int or null>,   # newer-page anchor
-            },
-            ...
-          }
-        }
     """
 
     return build_email_overview(
         mailbox=mailbox,
         limit=limit,
         search_query=search_query,
+        search_mode=search_mode,
         cursor=cursor,
         accounts=accounts,
-        ACCOUNTS=ACCOUNTS
+        ACCOUNTS=ACCOUNTS,
     )
 
 @app.get("/api/emails/mailbox")
-def get_email_mailbox() -> Dict[str, Dict[str, Dict[str, int]]]:
+def get_email_mailbox(background_tasks: BackgroundTasks) -> Dict[str, Dict[str, Dict[str, int]]]:
     """
     Return available mailboxes per account.
     """
-    res: Dict[str, List[str]] = {}
+    cache_key = "mailboxes_all_accounts"
+    cached = _MAILBOX_CACHE.get(cache_key)
+    if cached is not None:
+        background_tasks.add_task(_refresh_mailbox_cache, cache_key)
+        return cached
+
+    res = _compute_mailbox_status()
+    _MAILBOX_CACHE.set(cache_key, res)
+    return res
+
+
+def _compute_mailbox_status() -> Dict[str, Dict[str, Dict[str, int]]]:
+    res: Dict[str, Dict[str, Dict[str, int]]] = {}
     for acc_name, manager in ACCOUNTS.items():
         mailbox_list = manager.list_mailboxes()
         res[acc_name] = {}
@@ -102,26 +203,60 @@ def get_email_mailbox() -> Dict[str, Dict[str, Dict[str, int]]]:
             res[acc_name][mailbox] = mailbox_status
     return res
 
+
+def _refresh_mailbox_cache(cache_key: str) -> None:
+    try:
+        res = _compute_mailbox_status()
+        _MAILBOX_CACHE.set(cache_key, res)
+    except Exception:
+        pass
+
+
 @app.get("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}")
-def get_email(account: str, mailbox: str, email_id: int) -> dict:
+def get_email(background_tasks: BackgroundTasks, account: str, mailbox: str, email_id: int) -> dict:
     """
     Fetch a single email by UID for a given account and mailbox.
     """
     account = unquote(account)
     mailbox = unquote(mailbox)
+
     manager = ACCOUNTS.get(account)
     if manager is None:
         raise HTTPException(status_code=404, detail="Account not found")
+
+    cache_key = f"{account}|{mailbox}|{int(email_id)}"
+    cached = _MESSAGE_CACHE.get(cache_key)
+    if cached is not None:
+        # still mark seen in background (idempotent-ish)
+        email_ref = EmailRef(mailbox=mailbox, uid=email_id)
+        background_tasks.add_task(_safe_mark_seen, account, email_ref)
+        return cached  # type: ignore
+
     email_ref = EmailRef(mailbox=mailbox, uid=email_id)
+
     message: EmailMessage = manager.fetch_message_by_ref(
         email_ref,
         include_attachment_meta=True,
     )
-    manager.mark_seen([email_ref])
+
+    # mark seen asynchronously
+    background_tasks.add_task(_safe_mark_seen, account, email_ref)
 
     data = message.to_dict()
     data["ref"].setdefault("account", account)
+
+    _MESSAGE_CACHE.set(cache_key, data)
     return data
+
+
+def _safe_mark_seen(account: str, ref: EmailRef) -> None:
+    try:
+        manager = ACCOUNTS.get(account)
+        if manager is None:
+            return
+        manager.mark_seen([ref])
+    except Exception:
+        pass
 
 @app.get("/api/accounts/{account:path}/mailboxes/{mailbox:path}/emails/{email_id}/attachment")
 def download_email_attachment(

@@ -36,6 +36,47 @@ export function formatDate(value: unknown, verbose?: boolean): string {
   });
 }
 
+// export function formatDate(value: unknown, verbose?: boolean): string {
+//   if (!value) return "";
+
+//   const date = new Date(value as any);
+//   if (Number.isNaN(date.getTime())) return String(value);
+
+//   const now = new Date();
+
+//   // Normalize to midnight for date-only comparisons
+//   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+//   const yesterday = new Date(today);
+//   yesterday.setDate(today.getDate() - 1);
+
+//   const targetDay = new Date(
+//     date.getFullYear(),
+//     date.getMonth(),
+//     date.getDate()
+//   );
+
+//   if (targetDay.getTime() === today.getTime()) {
+//     // Today → time only (24h)
+//     return date.toLocaleTimeString(undefined, {
+//       hour: "2-digit",
+//       minute: "2-digit",
+//       hour12: false,
+//     });
+//   }
+
+//   if (targetDay.getTime() === yesterday.getTime()) {
+//     // Yesterday
+//     return "Yesterday";
+//   }
+
+//   // Older → date only
+//   return date.toLocaleDateString(undefined, {
+//     year: verbose ? "numeric" : undefined,
+//     month: "short",
+//     day: "2-digit",
+//   });
+// }
+
 export function escapeHtml(str: unknown): string {
   return String(str)
     .replace(/&/g, "&amp;")

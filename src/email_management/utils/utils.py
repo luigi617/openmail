@@ -74,7 +74,7 @@ def build_email_context(msg: EmailMessage) -> str:
     """
     subject = msg.subject
     from_addr = msg.from_email
-    date = msg.date
+    date = msg.received_at
     body = msg.text
 
     date_part = f"Date: {date}\n" if date else ""
@@ -94,8 +94,8 @@ def quote_original_reply_text(original: EmailMessage) -> str:
     > line 1
     > line 2
     """
-    if original.date:
-        date_str = original.date.isoformat()
+    if original.received_at:
+        date_str = original.received_at.isoformat()
     else:
         date_str = "an earlier date"
 
@@ -115,8 +115,8 @@ def quote_original_reply_html(original: EmailMessage) -> str:
 
     Uses <blockquote> for the body, and a short 'On ..., X wrote:' header.
     """
-    if original.date:
-        date_str = original.date.isoformat()
+    if original.received_at:
+        date_str = original.received_at.isoformat()
     else:
         date_str = "an earlier date"
 
@@ -150,8 +150,8 @@ def quote_forward_text(original: EmailMessage) -> str:
         quoted_lines.append(f"To: {', '.join(original.to)}")
     if original.cc:
         quoted_lines.append(f"Cc: {', '.join(original.cc)}")
-    if original.date:
-        quoted_lines.append(f"Date: {original.date.isoformat()}")
+    if original.received_at:
+        quoted_lines.append(f"Date: {original.received_at.isoformat()}")
     if original.subject:
         quoted_lines.append(f"Subject: {original.subject}")
     quoted_lines.append("")
@@ -179,8 +179,8 @@ def quote_forward_html(original: EmailMessage) -> Optional[str]:
         header_lines.append(f"To: {', '.join(original.to)}")
     if original.cc:
         header_lines.append(f"Cc: {', '.join(original.cc)}")
-    if original.date:
-        header_lines.append(f"Date: {original.date.isoformat()}")
+    if original.received_at:
+        header_lines.append(f"Date: {original.received_at.isoformat()}")
     if original.subject:
         header_lines.append(f"Subject: {original.subject}")
 
