@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import List, Optional, Sequence, TYPE_CHECKING
-from openmail.models import EmailMessage, EmailOverview
+
+from typing import TYPE_CHECKING, List, Optional, Sequence
+
 from openmail.imap import IMAPQuery, PagedSearchResult
+from openmail.models import EmailMessage, EmailOverview
 from openmail.utils import iso_days_ago
 
 if TYPE_CHECKING:
@@ -12,7 +14,7 @@ class EmailQuery:
     Builder that composes filters and only hits IMAP when you call .search() or .fetch().
     """
 
-    def __init__(self, manager: Optional["EmailManager"], mailbox: str = "INBOX"):
+    def __init__(self, manager: Optional[EmailManager], mailbox: str = "INBOX"):
         self._m = manager
         self._mailbox = mailbox
         self._q = IMAPQuery()
@@ -136,7 +138,7 @@ class EmailQuery:
             self._q.header(name, needle)
         return self
     
-    def for_thread_root(self, root: EmailMessage) -> "EmailQuery":
+    def for_thread_root(self, root: EmailMessage) -> EmailQuery:
         """
         Narrow this query to messages that look like they belong to the same
         thread as `root`, based on its Message-ID.

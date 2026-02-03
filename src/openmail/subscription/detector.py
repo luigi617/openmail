@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from typing import List, Optional
+
 from openmail.imap import IMAPClient, IMAPQuery
 from openmail.models import UnsubscribeCandidate
 from openmail.subscription.parser import parse_list_unsubscribe
+
 
 class SubscriptionDetector:
     def __init__(self, imap: IMAPClient):

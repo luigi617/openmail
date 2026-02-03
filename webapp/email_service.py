@@ -1,8 +1,4 @@
-from openmail.auth import PasswordAuth, OAuth2Auth, NoAuth
-from openmail.config import SMTPConfig, IMAPConfig
-from openmail.smtp.client import SMTPClient
-from openmail.imap.client import IMAPClient
-from openmail import EmailManager
+from typing import Dict
 
 from oauth2 import (
     GoogleOAuth2Config,
@@ -13,7 +9,11 @@ from oauth2 import (
     refresh_yahoo_access_token,
 )
 
-from typing import Dict
+from openmail import EmailManager
+from openmail.auth import NoAuth, OAuth2Auth, PasswordAuth
+from openmail.config import IMAPConfig, SMTPConfig
+from openmail.imap.client import IMAPClient
+from openmail.smtp.client import SMTPClient
 
 
 class AccountParseError(Exception):

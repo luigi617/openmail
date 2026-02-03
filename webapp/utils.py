@@ -7,6 +7,7 @@ from fastapi import UploadFile
 
 from openmail.models import Attachment
 
+
 def encode_cursor(state: dict) -> str:
     raw = json.dumps(state, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")

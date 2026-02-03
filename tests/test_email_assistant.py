@@ -1,14 +1,14 @@
-from pydantic import BaseModel
 from email.message import EmailMessage as PyEmailMessage
 
-from openmail import EmailManager, EmailAssistant
-from openmail.imap.pagination import PagedSearchResult
-import openmail.llm.model as model_mod
+from pydantic import BaseModel
+
 import openmail.email_assistant as assistants_mod
+import openmail.llm.model as model_mod
+from openmail import EmailAssistant, EmailManager
 from openmail.email_assistant import EmailAssistantProfile
+from openmail.imap.pagination import PagedSearchResult
 from openmail.models import EmailMessage
 from openmail.types import EmailRef
-
 from tests.fake_imap_client import FakeIMAPClient
 from tests.fake_smtp_client import FakeSMTPClient
 

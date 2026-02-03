@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import re
 from typing import List
-from openmail.models import UnsubscribeMethod
 
+from openmail.models import UnsubscribeMethod
 
 _LIST_UNSUB_RE = re.compile(r"<\s*([^>]+?)\s*>")
 

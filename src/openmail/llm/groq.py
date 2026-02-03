@@ -1,7 +1,9 @@
 from typing import Type
-from pydantic import BaseModel
-from langchain_groq import ChatGroq
+
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_groq import ChatGroq
+from pydantic import BaseModel
+
 
 def get_groq(
     model_name: str,

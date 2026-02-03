@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 PHISHING_DETECTION_PROMPT = """
 You are a security assistant that determines whether an email is likely to be a phishing or scam attempt.

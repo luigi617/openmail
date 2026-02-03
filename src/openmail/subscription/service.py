@@ -1,18 +1,18 @@
-import requests
+from email.message import EmailMessage as PyEmailMessage
 from typing import Dict, List, Optional
 from urllib.parse import urljoin
 
+import requests
 from bs4 import BeautifulSoup
 
-from email.message import EmailMessage as PyEmailMessage
-from openmail.smtp import SMTPClient
-
 from openmail.models import (
-    UnsubscribeCandidate,
     UnsubscribeActionResult,
+    UnsubscribeCandidate,
     UnsubscribeMethod,
 )
+from openmail.smtp import SMTPClient
 from openmail.types import SendResult
+
 
 def _http_unsubscribe_flow(url: str, timeout: int = 10) -> tuple[bool, str]:
     """

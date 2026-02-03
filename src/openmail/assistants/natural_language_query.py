@@ -1,12 +1,15 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
 from pydantic import BaseModel, Field
-from openmail.llm import get_model
+
 from openmail.email_query import EmailQuery
 from openmail.imap import IMAPQuery
+from openmail.llm import get_model
 
 if TYPE_CHECKING:
-    from openmail.email_manager import EmailManager
+    pass
 
 class HeaderFilter(BaseModel):
     name: str = Field(

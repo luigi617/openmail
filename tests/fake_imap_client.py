@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from bisect import bisect_left, bisect_right
-from typing import Dict, List, Optional, Sequence, Set, Tuple, Any
-
+from dataclasses import dataclass, field
 from email.message import EmailMessage as PyEmailMessage
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from openmail.errors import IMAPError
+from openmail.imap.pagination import PagedSearchResult
+from openmail.imap.parser import parse_overview, parse_rfc822
+from openmail.imap.query import IMAPQuery
 from openmail.models import EmailMessage, EmailOverview
 from openmail.types import EmailRef
-from openmail.imap.query import IMAPQuery
-from openmail.imap.parser import parse_rfc822, parse_overview
-from openmail.imap.pagination import PagedSearchResult
 
 
 @dataclass
@@ -131,7 +130,7 @@ class FakeIMAPClient:
         cache_key = (mailbox, criteria)
 
         box = self._mailboxes.get(mailbox, {})
-        parts = list(getattr(query, "parts", []))
+        parts = query.parts
 
         # Ascending old->new, like real client cache.
         uids: List[int] = []
@@ -388,17 +387,15 @@ class FakeIMAPClient:
             raise IMAPError(f"Message not found for {ref!r}")
 
         msg = stored.msg
-        atts = getattr(msg, "attachments", None) or []
+        atts = msg.attachments
         for att in atts:
-            part = getattr(att, "part", None) or getattr(att, "attachment_part", None)
+            part = att.part
             if part != attachment_part:
                 continue
 
-            # common payload field names
-            for key in ("content", "data", "payload", "bytes"):
-                val = getattr(att, key, None)
-                if isinstance(val, (bytes, bytearray)):
-                    return bytes(val)
+            val = att.data
+            if isinstance(val, (bytes, bytearray)):
+                return bytes(val)
 
             # if the attachment itself is bytes
             if isinstance(att, (bytes, bytearray)):
@@ -566,7 +563,7 @@ class FakeIMAPClient:
         """
         self._maybe_fail()
 
-    def __enter__(self) -> "FakeIMAPClient":
+    def __enter__(self) -> FakeIMAPClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

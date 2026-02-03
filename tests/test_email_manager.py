@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from email.message import EmailMessage as PyEmailMessage
 
 import pytest
 
 from openmail.email_manager import EmailManager
-from openmail.models import EmailMessage, Attachment, UnsubscribeCandidate, UnsubscribeMethod
+from openmail.models import Attachment, EmailMessage, UnsubscribeCandidate, UnsubscribeMethod
 from openmail.types import EmailRef
-from openmail.utils import ensure_reply_subject, ensure_forward_subject
-
+from openmail.utils import ensure_forward_subject, ensure_reply_subject
 from tests.fake_imap_client import FakeIMAPClient
 from tests.fake_smtp_client import FakeSMTPClient
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

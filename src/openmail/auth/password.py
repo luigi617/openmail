@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 from openmail.auth.base import AuthContext
 from openmail.errors import AuthError
+
 
 @dataclass(frozen=True)
 class PasswordAuth:

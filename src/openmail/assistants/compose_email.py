@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import Any, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 
 COMPOSE_EMAIL_PROMPT = """

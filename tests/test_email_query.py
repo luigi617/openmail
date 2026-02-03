@@ -1,9 +1,8 @@
 import pytest
 
-from openmail.imap import IMAPQuery, PagedSearchResult
-from openmail.email_query import EmailQuery
 import openmail.email_query as easy_mod
-
+from openmail.email_query import EmailQuery
+from openmail.imap import IMAPQuery, PagedSearchResult
 
 
 class FakeImap:

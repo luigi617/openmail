@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set
 
 from openmail.types import EmailRef
 

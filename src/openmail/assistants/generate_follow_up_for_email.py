@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 FOLLOW_UP_PROMPT = """
 You are an assistant that writes a polite, concise follow-up email.

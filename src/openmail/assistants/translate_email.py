@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Any, Optional, Tuple
-from pydantic import BaseModel, Field
-from openmail.llm import get_model
 
+from typing import Any, Optional, Tuple
+
+from pydantic import BaseModel, Field
+
+from openmail.llm import get_model
 
 TRANSLATE_EMAIL_PROMPT = """
 You are a translation assistant.

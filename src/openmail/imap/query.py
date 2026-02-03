@@ -194,7 +194,7 @@ class IMAPQuery:
     def exclude_body(self, s: str) -> IMAPQuery:
         return self._not("BODY", _q(s))
 
-    def or_(self, *queries: "IMAPQuery") -> "IMAPQuery":
+    def or_(self, *queries: IMAPQuery) -> IMAPQuery:
         qs = [q for q in (self, *queries) if q.parts]
 
         if len(qs) < 2:

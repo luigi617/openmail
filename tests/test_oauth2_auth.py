@@ -7,7 +7,6 @@ from openmail.auth import OAuth2Auth
 from openmail.errors import AuthError
 
 
-
 class FakeIMAPConnection:
     """
     Minimal IMAP-like object implementing .authenticate(mechanism, callback)

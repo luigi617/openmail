@@ -5,12 +5,11 @@ from typing import Any, Dict, List, Tuple, Type
 import pytest
 from pydantic import BaseModel
 
-from openmail.llm.model import _get_base_llm, get_model
 from openmail.llm.costs import (
     _lookup_price,
     compute_cost_usd,
-    TokenUsageCallback,
 )
+from openmail.llm.model import _get_base_llm, get_model
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

@@ -3,6 +3,7 @@ import pytest
 from openmail.auth import PasswordAuth
 from openmail.errors import AuthError
 
+
 class DummySMTPServer:
     def __init__(self, should_fail: bool = False):
         self.should_fail = should_fail

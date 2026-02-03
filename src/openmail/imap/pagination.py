@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional
+
 from openmail.types import EmailRef
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Dict, List, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
-from openmail.utils import safe_decode, looks_binary
-
+from openmail.utils import looks_binary, safe_decode
 
 ATTACHMENT_SUMMARY_PROMPT = """
 You are an assistant that summarizes file attachments from an email.
@@ -84,7 +86,7 @@ def llm_summarize_attachments_for_email(
     """
     Summarize each attachment in an email.
     """
-    attachments = getattr(message, "attachments", None) or []
+    attachments = message.attachments
     if not attachments:
         return {}, {}
 

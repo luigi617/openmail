@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import Any, Tuple, List, Sequence
+
+from typing import Any, List, Sequence, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 THREAD_SUMMARY_PROMPT = """
 You are an assistant that summarizes email conversation threads.

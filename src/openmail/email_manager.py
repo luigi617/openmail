@@ -5,28 +5,32 @@ from dataclasses import dataclass
 from email.message import EmailMessage as PyEmailMessage
 from typing import Dict, List, Optional, Sequence, Set
 
-from .email_query import EmailQuery
-from openmail.models import (UnsubscribeCandidate,
-                                     EmailMessage,
-                                     EmailOverview,
-                                     UnsubscribeActionResult,
-                                     Attachment)
-from openmail.subscription import SubscriptionService, SubscriptionDetector
 from openmail.imap import IMAPClient, PagedSearchResult
+from openmail.models import (
+    Attachment,
+    EmailMessage,
+    EmailOverview,
+    UnsubscribeActionResult,
+    UnsubscribeCandidate,
+)
 from openmail.smtp import SMTPClient
+from openmail.subscription import SubscriptionDetector, SubscriptionService
 from openmail.types import EmailRef, SendResult
-from openmail.utils import (ensure_reply_subject,
-                                    ensure_forward_subject,
-                                    get_header,
-                                    parse_addrs,
-                                    dedup_addrs,
-                                    build_references,
-                                    remove_addr,
-                                    quote_original_reply_text,
-                                    quote_original_reply_html,
-                                    quote_forward_text,
-                                    quote_forward_html)
+from openmail.utils import (
+    build_references,
+    dedup_addrs,
+    ensure_forward_subject,
+    ensure_reply_subject,
+    get_header,
+    parse_addrs,
+    quote_forward_html,
+    quote_forward_text,
+    quote_original_reply_html,
+    quote_original_reply_text,
+    remove_addr,
+)
 
+from .email_query import EmailQuery
 
 SEEN = r"\Seen"
 ANSWERED = r"\Answered"
@@ -769,7 +773,7 @@ class EmailManager:
         except Exception:
             pass
 
-    def __enter__(self) -> "EmailManager":
+    def __enter__(self) -> EmailManager:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

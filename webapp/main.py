@@ -9,22 +9,19 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response, UploadFile
-from fastapi import Form, File
+from email_overview import build_email_overview
+from email_service import parse_accounts
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
+from ttl_cache import TTLCache
+from utils import build_extra_headers, safe_filename, uploadfiles_to_attachments
 
 from openmail import EmailManager
 from openmail.models import EmailMessage
 from openmail.types import EmailRef
-
-from email_overview import build_email_overview
-from email_service import parse_accounts
-from ttl_cache import TTLCache
-from utils import build_extra_headers, safe_filename, uploadfiles_to_attachments
-
 
 BASE = Path(__file__).parent
 

@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 import base64
 from dataclasses import dataclass
 from typing import Callable
+
 from openmail.auth.base import AuthContext
 from openmail.errors import AuthError
+
 
 @dataclass(frozen=True)
 class OAuth2Auth:

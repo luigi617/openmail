@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Dict, List, Sequence, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 CLASSIFY_EMAILS_PROMPT = """
 You are an assistant that classifies emails into one of a small set of classes.

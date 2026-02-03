@@ -4,8 +4,9 @@ import copy
 from dataclasses import dataclass, field
 from email.message import EmailMessage as PyEmailMessage
 from email.utils import make_msgid, parseaddr
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional
 
+from openmail.config import SMTPConfig
 from openmail.errors import ConfigError, SMTPError
 from openmail.types import SendResult
 
@@ -40,7 +41,7 @@ class FakeSMTPClient:
     """
 
     # Can be real SMTPConfig, stub, or None in tests.
-    config: Optional[object] = None
+    config: Optional[SMTPConfig] = None
 
     sent: List[SentEmailRecord] = field(default_factory=list)
 
@@ -62,8 +63,9 @@ class FakeSMTPClient:
 
     def _from_email(self) -> str:
         cfg = self.config
-        if cfg is not None and getattr(cfg, "from_email", None):
-            return str(getattr(cfg, "from_email"))
+        
+        if cfg is not None and cfg.from_email:
+            return cfg.from_email
         raise ConfigError("No from_email set")
 
     def _ensure_connected(self) -> None:
@@ -117,7 +119,7 @@ class FakeSMTPClient:
     # ------------- public API -------------
 
     @classmethod
-    def from_config(cls, config: object) -> "FakeSMTPClient":
+    def from_config(cls, config: object) -> FakeSMTPClient:
         """
         Parity with SMTPClient.from_config for tests that use it.
         We keep validation minimal but consistent where it matters for unit tests.
@@ -191,7 +193,7 @@ class FakeSMTPClient:
         self._maybe_fail()
         self._reset_connection()
 
-    def __enter__(self) -> "FakeSMTPClient":
+    def __enter__(self) -> FakeSMTPClient:
         # lazy connect like real client
         return self
 

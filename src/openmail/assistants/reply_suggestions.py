@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import Any, Tuple, List
+
+from typing import Any, List, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 EMAIL_REPLY_SUGGESTION_PROMPT = """
 You are an assistant that generates brief suggestions for how a user could reply to an email.

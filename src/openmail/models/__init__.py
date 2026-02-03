@@ -1,6 +1,10 @@
+from openmail.models.attachment import Attachment, AttachmentMeta
 from openmail.models.message import EmailAddress, EmailMessage, EmailOverview
-from openmail.models.attachment import AttachmentMeta, Attachment
-from openmail.models.subscription import UnsubscribeMethod, UnsubscribeCandidate, UnsubscribeActionResult
+from openmail.models.subscription import (
+    UnsubscribeActionResult,
+    UnsubscribeCandidate,
+    UnsubscribeMethod,
+)
 from openmail.models.task import Task
 
 __all__ = [

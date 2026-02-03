@@ -1,8 +1,8 @@
 import html as _html
-from datetime import datetime, timezone, timedelta
-from email.utils import getaddresses, formataddr, parsedate_to_datetime
 import re
-from typing import Optional, Dict, List
+from datetime import datetime, timedelta, timezone
+from email.utils import formataddr, getaddresses, parsedate_to_datetime
+from typing import Dict, List, Optional
 
 from openmail.models import EmailMessage
 

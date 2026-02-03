@@ -22,11 +22,16 @@ from openmail.imap.bodystructure import (
 )
 from openmail.imap.inline_cid import inline_cids_as_data_uris
 from openmail.imap.pagination import PagedSearchResult
-from openmail.imap.parser import decode_body_chunk, decode_transfer, parse_headers_and_bodies, parse_overview
+from openmail.imap.parser import (
+    decode_body_chunk,
+    decode_transfer,
+    parse_headers_and_bodies,
+    parse_overview,
+)
 from openmail.imap.query import IMAPQuery
+from openmail.models import AttachmentMeta, EmailMessage, EmailOverview
 from openmail.types import EmailRef
 from openmail.utils import parse_list_mailbox_name
-from openmail.models import EmailMessage, EmailOverview, AttachmentMeta
 
 UID_RE = re.compile(r"UID\s+(\d+)", re.IGNORECASE)
 INTERNALDATE_RE = re.compile(r'INTERNALDATE\s+"([^"]+)"', re.IGNORECASE)
@@ -71,7 +76,7 @@ class IMAPClient:
     backoff_seconds: float = 0.0
 
     @classmethod
-    def from_config(cls, config: IMAPConfig) -> "IMAPClient":
+    def from_config(cls, config: IMAPConfig) -> IMAPClient:
         if not config.host:
             raise ConfigError("IMAP host required")
         if not config.port:
@@ -922,7 +927,7 @@ class IMAPClient:
         with self._lock:
             self._reset_conn()
 
-    def __enter__(self) -> "IMAPClient":
+    def __enter__(self) -> IMAPClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

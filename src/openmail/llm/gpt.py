@@ -1,7 +1,8 @@
 from typing import Type
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
+
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 
 def get_openai(

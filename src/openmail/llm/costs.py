@@ -1,4 +1,5 @@
 from typing import Dict
+
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 

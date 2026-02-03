@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import Any, List, Sequence, Tuple, Optional
-from pydantic import BaseModel, Field
-from openmail.llm import get_model
-from openmail.models import EmailMessage
-from openmail.utils import build_email_context
-from openmail.models import Task
 
+from typing import Any, List, Optional, Sequence, Tuple
+
+from pydantic import BaseModel, Field
+
+from openmail.llm import get_model
+from openmail.models import EmailMessage, Task
+from openmail.utils import build_email_context
 
 TASK_EXTRACTION_PROMPT = """
 You extract only important actionable tasks from one or more emails.

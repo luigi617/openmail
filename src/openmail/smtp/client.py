@@ -1,17 +1,18 @@
 from __future__ import annotations
+
 import copy
 import smtplib
 import ssl
 import threading
 from dataclasses import dataclass, field
-from email.utils import parseaddr
 from email.message import EmailMessage as PyEmailMessage
+from email.utils import parseaddr
 from typing import Iterable, List
 
 from openmail import SMTPConfig
+from openmail.auth import AuthContext
 from openmail.errors import AuthError, ConfigError, SMTPError
 from openmail.types import SendResult
-from openmail.auth import AuthContext
 
 
 @dataclass
@@ -24,7 +25,7 @@ class SMTPClient:
     max_messages_per_connection: int = 100
 
     @classmethod
-    def from_config(cls, config: SMTPConfig) -> "SMTPClient":
+    def from_config(cls, config: SMTPConfig) -> SMTPClient:
         if not config.host:
             raise ConfigError("SMTP host required")
         if config.use_ssl and config.use_starttls:
@@ -133,7 +134,7 @@ class SMTPClient:
         self._sent_since_connect += 1
         return SendResult(ok=True, message_id=str(msg["Message-ID"]))
 
-    def send(self, msg: PyEmailMessage, recipients: List[str]) -> "SendResult":
+    def send(self, msg: PyEmailMessage, recipients: List[str]) -> SendResult:
         if not recipients:
             raise ConfigError("send(): recipients list is empty")
         
@@ -210,7 +211,7 @@ class SMTPClient:
         with self._lock:
             self._reset_server()
 
-    def __enter__(self) -> "SMTPClient":
+    def __enter__(self) -> SMTPClient:
         # lazy connect;
         return self
 

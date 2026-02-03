@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime
 import email
 import quopri
+from datetime import datetime
 from email import policy
 from email.header import decode_header, make_header
 from email.message import Message as PyMessage

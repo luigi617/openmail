@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import copy
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import time
 from typing import Dict, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from openmail import EmailManager, EmailAssistant, EmailQuery
+from ttl_cache import TTLCache
+from utils import decode_cursor, encode_cursor
+
+from openmail import EmailAssistant, EmailManager, EmailQuery
 from openmail.imap import IMAPQuery
 from openmail.models import EmailOverview
-from utils import encode_cursor, decode_cursor
-from ttl_cache import TTLCache
-
 
 # First-page refresh behavior is governed by this TTL:
 # - cache hit: return cached response (no refresh)

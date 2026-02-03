@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 from typing import Any, Tuple
+
 from pydantic import BaseModel, Field
 
 from openmail.llm import get_model
-
 
 REWRITE_EMAIL_PROMPT = """
 You are an assistant that rewrites email drafts while preserving the original meaning.

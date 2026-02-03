@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Tuple
+
 from pydantic import BaseModel, Field
+
 from openmail.llm import get_model
 from openmail.models import EmailMessage
 from openmail.utils import build_email_context
-
 
 SENDER_TRUST_PROMPT = """
 You are an assistant that estimates how trustworthy the sender of an email appears.

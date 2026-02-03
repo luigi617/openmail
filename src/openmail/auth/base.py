@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
+
 
 @dataclass(frozen=True)
 class AuthContext:

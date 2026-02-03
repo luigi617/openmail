@@ -1,29 +1,30 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from email.message import EmailMessage as PyEmailMessage
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from openmail.assistants import (
     llm_classify_emails,
-    llm_detect_phishing_for_email,
-    llm_evaluate_sender_trust_for_email,
-    llm_generate_follow_up_for_email,
-    llm_concise_reply_for_email,
-    llm_summarize_single_email,
-    llm_summarize_many_emails,
-    llm_easy_imap_query_from_nl,
-    llm_reply_suggestions_for_email,
-    llm_prioritize_emails,
-    llm_summarize_thread_emails,
     llm_compose_email,
-    llm_rewrite_email,
-    llm_translate_email,
+    llm_concise_reply_for_email,
+    llm_detect_phishing_for_email,
+    llm_easy_imap_query_from_nl,
+    llm_evaluate_sender_trust_for_email,
     llm_extract_tasks_from_emails,
+    llm_generate_follow_up_for_email,
+    llm_prioritize_emails,
+    llm_reply_suggestions_for_email,
+    llm_rewrite_email,
     llm_summarize_attachments_for_email,
+    llm_summarize_many_emails,
+    llm_summarize_single_email,
+    llm_summarize_thread_emails,
+    llm_translate_email,
 )
-from openmail.email_manager import EmailManager
 from openmail.email_query import EmailQuery
 from openmail.models import EmailMessage, Task
+
 
 @dataclass
 class EmailAssistantProfile:
