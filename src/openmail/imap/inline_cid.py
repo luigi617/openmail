@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import imaplib
 import re
 from typing import Dict, Iterable, Optional
 from urllib.parse import unquote
@@ -59,6 +60,8 @@ def build_inline_index(atts: Iterable[AttachmentMeta]) -> Dict[str, AttachmentMe
 
 def inline_cids_as_data_uris(
     *,
+    conn: imaplib.IMAP4,
+    uid: int,
     html: str,
     attachment_metas: list[AttachmentMeta],
     fetch_part_bytes,  # callable(part: str) -> bytes
@@ -85,7 +88,7 @@ def inline_cids_as_data_uris(
             return m.group(0)
 
         try:
-            data = fetch_part_bytes(hit.part)
+            data = fetch_part_bytes(conn, uid=uid, part=hit.part)
         except Exception:
             return m.group(0)
 

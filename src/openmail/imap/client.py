@@ -1,3 +1,4 @@
+# openmail/imap/client.py
 from __future__ import annotations
 
 import imaplib
@@ -14,17 +15,27 @@ from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 from openmail import IMAPConfig
 from openmail.auth import AuthContext
 from openmail.errors import ConfigError, IMAPError
+from openmail.imap.attachment_parts import fetch_part_bytes
 from openmail.imap.bodystructure import (
     extract_bodystructure_from_fetch_meta,
     extract_text_and_attachments,
     parse_bodystructure,
     pick_best_text_parts,
 )
+from openmail.imap.fetch_response import (
+    FetchPiece,
+    has_header_peek,
+    iter_fetch_pieces,
+    match_section_body,
+    match_section_mime,
+    parse_flags,
+    parse_internaldate,
+    parse_uid,
+)
 from openmail.imap.inline_cid import inline_cids_as_data_uris
 from openmail.imap.pagination import PagedSearchResult
 from openmail.imap.parser import (
     decode_body_chunk,
-    decode_transfer,
     parse_headers_and_bodies,
     parse_overview,
 )
@@ -32,33 +43,6 @@ from openmail.imap.query import IMAPQuery
 from openmail.models import AttachmentMeta, EmailMessage, EmailOverview
 from openmail.types import EmailRef
 from openmail.utils import parse_list_mailbox_name
-
-UID_RE = re.compile(r"UID\s+(\d+)", re.IGNORECASE)
-INTERNALDATE_RE = re.compile(r'INTERNALDATE\s+"([^"]+)"', re.IGNORECASE)
-FLAGS_RE = re.compile(r"FLAGS\s*\(([^)]*)\)", re.IGNORECASE)
-
-# Used for parsing FETCH section results
-MIME_TOKEN_RE = re.compile(r"BODY\[(\d+(?:\.\d+)*)\.MIME\]", re.IGNORECASE)
-BODY_TOKEN_RE = re.compile(r"BODY\[(\d+(?:\.\d+)*)\]", re.IGNORECASE)
-HEADER_PEEK_RE = re.compile(r"BODY\[HEADER\]", re.IGNORECASE)
-
-
-def _extract_payload_from_fetch_item(
-    item: tuple, data: list, i: int
-) -> Tuple[Optional[bytes], bool]:
-    """
-    Returns (payload_bytes, used_next_element).
-
-    imaplib can return:
-      - (meta, payload)
-      - (meta, None) then payload as next bytes item
-    """
-    raw = item[1] if len(item) > 1 and isinstance(item[1], (bytes, bytearray)) else None
-    used_next = False
-    if raw is None and i + 1 < len(data) and isinstance(data[i + 1], (bytes, bytearray)):
-        raw = data[i + 1]
-        used_next = True
-    return raw, used_next
 
 
 @dataclass
@@ -343,28 +327,17 @@ class IMAPClient:
         mime_bytes: Optional[bytes] = None
         body_bytes: Optional[bytes] = None
 
-        j = 0
-        while j < len(data):
-            it = data[j]
-            if not isinstance(it, tuple) or not it:
-                j += 1
+        for piece in iter_fetch_pieces(data or []):
+            sec_mime = match_section_mime(piece.meta)
+            sec_body = match_section_body(piece.meta)
+
+            if piece.payload is None:
                 continue
 
-            meta_b = it[0]
-            if not isinstance(meta_b, (bytes, bytearray)):
-                j += 1
-                continue
-
-            meta_s = meta_b.decode(errors="ignore")
-            pay, used_n = _extract_payload_from_fetch_item(it, data, j)
-
-            if isinstance(pay, (bytes, bytearray)):
-                if MIME_TOKEN_RE.search(meta_s):
-                    mime_bytes = bytes(pay)
-                elif BODY_TOKEN_RE.search(meta_s) and not MIME_TOKEN_RE.search(meta_s):
-                    body_bytes = bytes(pay)
-
-            j += 2 if used_n else 1
+            if sec_mime:
+                mime_bytes = piece.payload
+            elif sec_body:
+                body_bytes = piece.payload
 
         return mime_bytes, body_bytes
 
@@ -406,36 +379,12 @@ class IMAPClient:
             partial: Dict[int, Dict[str, object]] = {}
             current_uid: Optional[int] = None
 
-            i = 0
-            n = len(data)
-            while i < n:
-                item = data[i]
-
-                if isinstance(item, (bytes, bytearray)):
-                    if item.strip() == b")":
-                        current_uid = None
-                    i += 1
-                    continue
-
-                if not isinstance(item, tuple) or not item:
-                    i += 1
-                    continue
-
-                meta_raw = item[0]
-                if not isinstance(meta_raw, (bytes, bytearray)):
-                    i += 1
-                    continue
-
-                meta_str = meta_raw.decode(errors="ignore")
-                payload, used_next = _extract_payload_from_fetch_item(item, data, i)
-
-                m_uid = UID_RE.search(meta_str)
-                if m_uid:
-                    uid = int(m_uid.group(1))
+            for piece in iter_fetch_pieces(data):
+                uid = parse_uid(piece.meta)
+                if uid is not None:
                     current_uid = uid if uid in required_uids else None
 
                 if current_uid is None:
-                    i += 2 if used_next else 1
                     continue
 
                 bucket = partial.setdefault(
@@ -443,18 +392,16 @@ class IMAPClient:
                     {"headers": None, "internaldate": None, "bodystructure": None},
                 )
 
-                m_internal = INTERNALDATE_RE.search(meta_str)
-                if m_internal:
-                    bucket["internaldate"] = m_internal.group(1)
+                internal = parse_internaldate(piece.meta)
+                if internal:
+                    bucket["internaldate"] = internal
 
-                if HEADER_PEEK_RE.search(meta_str) and isinstance(payload, (bytes, bytearray)):
-                    bucket["headers"] = bytes(payload)
+                if has_header_peek(piece.meta) and piece.payload is not None:
+                    bucket["headers"] = piece.payload
 
-                bs = extract_bodystructure_from_fetch_meta(meta_str)
+                bs = extract_bodystructure_from_fetch_meta(piece.meta)
                 if bs:
                     bucket["bodystructure"] = bs
-
-                i += 2 if used_next else 1
 
             out: List[EmailMessage] = []
             for r in refs:
@@ -486,44 +433,14 @@ class IMAPClient:
                         if html_ref is not None:
                             mime_b, body_b = self._fetch_section_mime_and_body(conn, uid=r.uid, section=html_ref.part)
                             html = self._decode_section(mime_bytes=mime_b, body_bytes=body_b)
-                        
+
                         if html and attachment_metas:
-                            def _fetch_bytes(part: str) -> bytes:
-                                # Use the existing conn to avoid lock reentry and extra reconnect logic.
-                                # (This duplicates fetch_attachment logic but keeps it in-process.)
-                                typ, mime_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}.MIME])")
-                                if typ != "OK" or not mime_data:
-                                    raise IMAPError(f"FETCH attachment MIME failed uid={r.uid} part={part}: {mime_data}")
-
-                                mime_bytes2 = None
-                                for item in mime_data:
-                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
-                                        mime_bytes2 = bytes(item[1])
-                                        break
-
-                                cte = None
-                                if mime_bytes2:
-                                    msg = BytesParser(policy=default_policy).parsebytes(mime_bytes2)
-                                    cte = msg.get("Content-Transfer-Encoding")
-
-                                typ, body_data = conn.uid("FETCH", str(r.uid), f"(UID BODY.PEEK[{part}])")
-                                if typ != "OK" or not body_data:
-                                    raise IMAPError(f"FETCH attachment failed uid={r.uid} part={part}: {body_data}")
-
-                                payload = None
-                                for item in body_data:
-                                    if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
-                                        payload = bytes(item[1])
-                                        break
-                                if payload is None:
-                                    raise IMAPError(f"Attachment payload not found uid={r.uid} part={part}")
-
-                                return decode_transfer(payload, cte)
 
                             html = inline_cids_as_data_uris(
+                                conn=conn,
+                                uid=r.uid,
                                 html=html,
                                 attachment_metas=attachment_metas,
-                                fetch_part_bytes=_fetch_bytes,
                             )
 
                     except Exception:
@@ -569,36 +486,13 @@ class IMAPClient:
 
             partial: Dict[int, Dict[str, object]] = {}
             current_uid: Optional[int] = None
-            i = 0
-            n = len(data)
 
-            while i < n:
-                item = data[i]
-
-                if isinstance(item, (bytes, bytearray)):
-                    if item.strip() == b")":
-                        current_uid = None
-                    i += 1
-                    continue
-
-                if not isinstance(item, tuple) or not item:
-                    i += 1
-                    continue
-
-                meta_raw = item[0]
-                if not isinstance(meta_raw, (bytes, bytearray)):
-                    i += 1
-                    continue
-
-                meta = meta_raw.decode(errors="ignore")
-                payload, used_next = _extract_payload_from_fetch_item(item, data, i)
-
-                m_uid = UID_RE.search(meta)
-                if m_uid:
-                    current_uid = int(m_uid.group(1))
+            for piece in iter_fetch_pieces(data):
+                uid = parse_uid(piece.meta)
+                if uid is not None:
+                    current_uid = uid
 
                 if current_uid is None:
-                    i += 2 if used_next else 1
                     continue
 
                 bucket = partial.setdefault(
@@ -606,20 +500,14 @@ class IMAPClient:
                     {"flags": set(), "headers": None, "internaldate": None},
                 )
 
-                m_flags = FLAGS_RE.search(meta)
-                if m_flags:
-                    flags_str = m_flags.group(1).strip()
-                    bucket["flags"] = {f for f in flags_str.split() if f} if flags_str else set()
+                bucket["flags"] = parse_flags(piece.meta) or bucket["flags"]
 
-                m_internal = INTERNALDATE_RE.search(meta)
-                if m_internal:
-                    bucket["internaldate"] = m_internal.group(1)
+                internal = parse_internaldate(piece.meta)
+                if internal:
+                    bucket["internaldate"] = internal
 
-                # payload holds the header fields
-                if isinstance(payload, (bytes, bytearray)):
-                    bucket["headers"] = bytes(payload)
-
-                i += 2 if used_next else 1
+                if piece.payload is not None:
+                    bucket["headers"] = piece.payload
 
             overviews: List[EmailOverview] = []
             for r in refs:
@@ -655,36 +543,7 @@ class IMAPClient:
 
         def _impl(conn: imaplib.IMAP4) -> bytes:
             self._ensure_selected(conn, mailbox, readonly=True)
-
-            typ, mime_data = conn.uid("FETCH", str(uid), f"(UID BODY.PEEK[{part}.MIME])")
-            if typ != "OK" or not mime_data:
-                raise IMAPError(f"FETCH attachment MIME failed uid={uid} part={part}: {mime_data}")
-
-            mime_bytes = None
-            for item in mime_data:
-                if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
-                    mime_bytes = bytes(item[1])
-                    break
-
-            cte = None
-            if mime_bytes:
-                msg = BytesParser(policy=default_policy).parsebytes(mime_bytes)
-                cte = msg.get("Content-Transfer-Encoding")
-
-            typ, body_data = conn.uid("FETCH", str(uid), f"(UID BODY.PEEK[{part}])")
-            if typ != "OK" or not body_data:
-                raise IMAPError(f"FETCH attachment failed uid={uid} part={part}: {body_data}")
-
-            payload = None
-            for item in body_data:
-                if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], (bytes, bytearray)):
-                    payload = bytes(item[1])
-                    break
-
-            if payload is None:
-                raise IMAPError(f"Attachment payload not found uid={uid} part={part}")
-
-            return decode_transfer(payload, cte)
+            return fetch_part_bytes(conn, uid=uid, part=part)
 
         return self._run_with_conn(_impl)
 
