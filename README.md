@@ -66,10 +66,10 @@ source .venv/bin/activate
 
 ---
 
-### 3. Install the Python package (editable mode)
+### 3. Install the Python package
 
 ```
-pip install -e .
+pip install -e ".[web]"
 ```
 
 This installs the OpenMail Python library in development mode.
@@ -92,6 +92,7 @@ Example `.env`:
 ```
 # Email account configuration
 
+# If not set, default to 8000
 PORT=...
 
 # To generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
