@@ -209,3 +209,4 @@ __marimo__/
 
 src/openmail/test.py
 run_web_dev.sh
+webapp/*.db

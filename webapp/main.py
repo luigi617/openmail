@@ -6,12 +6,12 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
+import threading
 from typing import Annotated, Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
 from email_overview import build_email_overview
-from email_service import parse_accounts
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -24,6 +24,9 @@ from openmail import EmailManager
 from openmail.models import EmailMessage
 from openmail.types import EmailRef
 
+from email_service import init_db, load_accounts_from_db
+from accounts_api import router as accounts_router, set_reload_callback
+
 load_dotenv(override=True)
 
 MAX_WORKERS = int(os.getenv("THREADPOOL_WORKERS", "20"))
@@ -32,6 +35,8 @@ EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
+    reload_accounts_in_memory()
     yield
     EXECUTOR.shutdown(wait=False)
 
@@ -70,10 +75,36 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # ---------------------------
 # Accounts + caches
 # ---------------------------
-ACCOUNTS: Dict[str, EmailManager] = parse_accounts(os.getenv("ACCOUNTS", ""))
+init_db()
+ACCOUNTS: Dict[str, EmailManager] = load_accounts_from_db()
+_accounts_lock = threading.Lock()
+
+def reload_accounts_in_memory():
+    global ACCOUNTS
+    with _accounts_lock:
+        ACCOUNTS = load_accounts_from_db()
+
+set_reload_callback(reload_accounts_in_memory)
 
 _MAILBOX_CACHE = TTLCache(ttl_seconds=60, maxsize=64)
 _MESSAGE_CACHE = TTLCache(ttl_seconds=600, maxsize=512)
+
+app.include_router(accounts_router)
+
+
+@app.get("/api/accounts/{account}/connected")
+def is_account_connected(account: str) -> dict:
+    email_manager = ACCOUNTS.get(account)
+    if not email_manager:
+        return {"result": False, "detail": "account does not exist"}
+    health_res = email_manager.health_check()
+    if not health_res["imap"] and not health_res["smtp"]:
+        return {"result": False, "detail": "IMAP and SMTP are not active"}
+    elif not health_res["imap"]:
+        return {"result": False, "detail": "IMAP is not active"}
+    elif not health_res["smtp"]:
+        return {"result": False, "detail": "SMTP are not active"}
+    return {"result": True, "detail": "ok"}
 
 
 # ---------------------------

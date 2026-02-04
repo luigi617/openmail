@@ -547,6 +547,153 @@ button.primary:hover {
   border: 1px solid var(--border-soft);
 }
 
+.mailboxes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mailboxes-header h2 {
+  margin: 0;
+}
+
+/* Accounts modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 1000;
+}
+
+.modal {
+  width: min(820px, 96vw);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.modal-body {
+  padding: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal-error {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--divider);
+  color: #ffdddd;
+  background: rgba(255, 0, 0, 0.12);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.accounts-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.accounts-main {
+  min-width: 0;
+}
+
+.accounts-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accounts-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pill {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--divider);
+  background: rgba(0,0,0,0.08);
+}
+
+.pill.ok {
+  background: rgba(0, 200, 0, 0.14);
+}
+
+.pill.bad {
+  background: rgba(255, 0, 0, 0.12);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.account-header-link {
+  border: none;
+  background: transparent;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.account-header-link:hover {
+  background: var(--hover);
+}
+
+
 /* --- Middle column (message list) -------------------------------- */
 .middle {
   display: flex;

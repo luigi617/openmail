@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import Layout from './components/Layout/Layout';
 import Composer from './components/Composer/Composer';
 import AppAlertModal from './components/Modal/AppAlertModal';
+import AccountsModal from './components/Modal/AccountModal';
 
 import { useEmailAppCore } from './hooks/useEmailApp';
 import { useAppModal } from './hooks/useAppModal';
@@ -12,6 +13,8 @@ import { useDetailActions } from './hooks/useDetailActions';
 export default function App() {
   const core = useEmailAppCore();
   const modal = useAppModal();
+
+  const [accountsModalOpen, setAccountsModalOpen] = useState(false); // NEW
 
   // local UI toggles for composer menus
   const [composerExtraMenuOpen, setComposerExtraMenuOpen] = useState(false);
@@ -34,30 +37,9 @@ export default function App() {
         title: 'Close message?',
         message: 'You have unsent changes. Do you want to save this message as a draft?',
         buttons: [
-          {
-            id: 1,
-            label: 'Save draft',
-            variant: 'primary',
-            onClick: async () => {
-              await onSaveDraft();
-              modal.close();
-            },
-          },
-          {
-            id: 2,
-            label: 'Discard',
-            variant: 'secondary',
-            onClick: () => {
-              onDiscard();
-              modal.close();
-            },
-          },
-          {
-            id: 3,
-            label: 'Cancel',
-            variant: 'secondary',
-            onClick: () => modal.close(),
-          },
+          { id: 1, label: 'Save draft', variant: 'primary', onClick: async () => { await onSaveDraft(); modal.close(); } },
+          { id: 2, label: 'Discard', variant: 'secondary', onClick: () => { onDiscard(); modal.close(); } },
+          { id: 3, label: 'Cancel', variant: 'secondary', onClick: () => modal.close() },
         ],
       });
     },
@@ -66,16 +48,11 @@ export default function App() {
   const composerTitle = useMemo(() => {
     if (!composer.state.open) return '';
     switch (composer.state.mode) {
-      case 'compose':
-        return 'New message';
-      case 'reply':
-        return 'Reply';
-      case 'reply_all':
-        return 'Reply all';
-      case 'forward':
-        return 'Forward';
-      default:
-        return 'Message';
+      case 'compose': return 'New message';
+      case 'reply': return 'Reply';
+      case 'reply_all': return 'Reply all';
+      case 'forward': return 'Forward';
+      default: return 'Message';
     }
   }, [composer.state.open, composer.state.mode]);
 
@@ -112,6 +89,9 @@ export default function App() {
             core.setFilterAccounts([acc]);
             core.setCurrentMailbox('INBOX');
           },
+
+          // NEW: pass to MailboxesCard via Layout->Sidebar props
+          onManageAccounts: () => setAccountsModalOpen(true),
         }}
         middle={{
           onLoadMore: loadMore,
@@ -163,6 +143,14 @@ export default function App() {
             composer.open('forward');
           },
           onMove: (destinationMailbox: string) => detailActions.moveSelected(destinationMailbox),
+        }}
+      />
+
+      <AccountsModal
+        open={accountsModalOpen}
+        onClose={() => setAccountsModalOpen(false)}
+        onAccountsChanged={() => {
+          void core.fetchOverview(null);
         }}
       />
 

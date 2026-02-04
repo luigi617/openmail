@@ -17,6 +17,8 @@ export type SidebarProps = {
   legendAccounts: string[];
   legendColorMap: Record<string, string>;
   onToggleLegendAccount: (account: string) => void;
+
+  onManageAccounts: () => void;
 };
 
 export default function Sidebar(props: SidebarProps) {
@@ -30,6 +32,7 @@ export default function Sidebar(props: SidebarProps) {
         filterAccounts={props.filterAccounts}
         onSelectAllInboxes={props.onSelectAllInboxes}
         onSelectMailbox={props.onSelectMailbox}
+        onManageAccounts={props.onManageAccounts}
       />
 
       <LegendCard

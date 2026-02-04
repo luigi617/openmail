@@ -51,3 +51,5 @@ export type ForwardParams = ComposeParamsBase & {
   includeOriginal?: boolean;
   includeAttachments?: boolean;
 };
+
+export type ConnectedResult = { result: boolean; detail: string };

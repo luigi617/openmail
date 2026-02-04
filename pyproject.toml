@@ -35,6 +35,8 @@ web = [
     "uvicorn",
     "jinja2",
     "python-multipart",
+    "cryptography",
+    "SQLAlchemy",
 ]
 
 [tool.hatch.build.targets.wheel]

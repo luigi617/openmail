@@ -3,13 +3,14 @@ import { requestJSON } from './http';
 import type { MailboxData, EmailMessage, EmailOverview } from '../types/email';
 import type { EmailRef } from '../types/shared';
 import type {
+  ConnectedResult,
   ForwardParams,
   OverviewParams,
   OverviewResponse,
   ReplyParams,
   SaveDraftParams,
   SendEmailParams,
-} from '../types/api';
+} from '../types/emailApi';
 
 function buildEmailUrl(account: string, mailbox: string, uid: string, suffix = '') {
   const a = encodeURIComponent(account);
@@ -59,6 +60,14 @@ async function replyImpl<T>(
 }
 
 export const EmailApi = {
+
+  async isAccountConnected(account: string): Promise<ConnectedResult> {
+    // account is the path param expected by backend (see note below)
+    return requestJSON<ConnectedResult>(`/api/accounts/${encodeURIComponent(account)}/connected`, {
+      method: 'GET',
+    });
+  },
+
   // GET /api/emails/mailbox
   async getMailboxes(): Promise<MailboxData> {
     return requestJSON<MailboxData>('/api/emails/mailbox');

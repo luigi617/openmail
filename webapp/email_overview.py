@@ -91,7 +91,7 @@ def build_email_overview(
         account_state = {acc_id: {"next_before_uid": None} for acc_id in account_ids}
 
     if not account_ids:
-        raise ValueError("No accounts specified or available")
+        return {}
 
     normalized_search = _normalize_search(search_query)
 
@@ -167,11 +167,14 @@ def build_email_overview(
         # Refresh only on first page AND only on cache miss (we're here)
         refresh_flag = is_first_page
 
-        page_meta, overview_list = q.fetch_overview(
-            before_uid=before_uid,
-            after_uid=None,
-            refresh=refresh_flag,
-        )
+        try:
+            page_meta, overview_list = q.fetch_overview(
+                before_uid=before_uid,
+                after_uid=None,
+                refresh=refresh_flag,
+            )
+        except:
+            return acc_id, 0, []
         return acc_id, int(page_meta.total), overview_list
 
     combined_entries: List[Tuple[str, EmailOverview]] = []
