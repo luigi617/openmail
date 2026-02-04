@@ -603,8 +603,9 @@ button.primary:hover {
   flex: 0 0 auto;
   padding: 10px 14px;
   border-bottom: 1px solid var(--divider);
-  color: #ffdddd;
-  background: rgba(255, 0, 0, 0.12);
+
+  color: var(--error-text);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
 .row {

@@ -5,6 +5,8 @@ import { AccountApi } from '../../api/accountApi';
 import CloseIcon from '@/assets/svg/close.svg?react';
 import { EmailApi } from '../../api/emailApi';
 
+const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN;
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -39,7 +41,7 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [redirectUri, setRedirectUri] = useState(
-    `http://localhost:8000/api/accounts/oauth/callback`
+    `${BACKEND_ORIGIN}/api/accounts/oauth/callback`
   );
   const [scopes, setScopes] = useState('');
 
@@ -92,6 +94,22 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
     void refresh();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== BACKEND_ORIGIN) return;
+      const data = event.data;
+      if (data?.type === 'oauth-success') {
+        void refresh();
+        onAccountsChanged?.();
+      }
+    }
+
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [refresh, onAccountsChanged]);
+
+
   function resetForm() {
     setProvider('gmail');
     setEmail('');
@@ -100,7 +118,7 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
     setClientId('');
     setClientSecret('');
     setScopes('');
-    setRedirectUri(`http://localhost:8000/api/accounts/oauth/callback`);
+    setRedirectUri(`${BACKEND_ORIGIN}/api/accounts/oauth/callback`);
   }
 
   function beginCreate() {
@@ -124,7 +142,7 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
     setClientId('');
     setClientSecret('');
     setScopes('');
-    setRedirectUri(`http://localhost:8000/api/accounts/oauth/callback`);
+    setRedirectUri(`${BACKEND_ORIGIN}/api/accounts/oauth/callback`);
   }
 
   async function handleSave() {
@@ -160,7 +178,8 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
             scopes: scopes.trim() ? scopes.trim() : undefined,
           });
 
-          window.open(res.authorize_url, '_blank', 'noopener,noreferrer');
+          window.open(res.authorize_url, '_blank', 'width=500,height=700');
+
         } else {
           if (!selected) throw new Error('No account selected');
           type OAuth2SecretPatch = Partial<{
@@ -214,7 +233,8 @@ export default function AccountsModal({ open, onClose, onAccountsChanged }: Prop
         redirectUri,
         scopes.trim() ? scopes.trim() : undefined
       );
-      window.open(res.authorize_url, '_blank', 'noopener,noreferrer');
+      window.open(res.authorize_url, '_blank', 'width=500,height=700');
+
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
     }

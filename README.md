@@ -37,7 +37,8 @@ All email credentials and data remain under your control.
 
 ## 🌐 Email Website
 
-![Website Screenshot](docs/demo.jpg)
+![OpenMailWebsite](docs/demo.jpg)
+![Account Management](docs/account.jpg)
 
 ---
 
@@ -90,27 +91,11 @@ Example `.env`:
 
 ```
 # Email account configuration
-#
-# Format:
-#   ACCOUNTS="<provider>:<email>:<auth_method>:<auth_params>"
-# Email accounts
-# Supported auth methods:
-#   - app
-#   - oauth2
-#
-# Examples:
-#
-# App password authentication:
-#   <provider>:<email>:app:password=<app_password>
-#
-# OAuth2 authentication:
-#   <provider>:<email>:oauth2:client_id=<client_id>:client_secret=<client_secret>:refresh_token=<refresh_token>
 
-ACCOUNTS="gmail:example1@example.com:app:password=example1password
-gmail:example2@example.com:app:password=example2password
-gmail:example3@example.com:oauth2:client_id=example3_ci:client_secret=example3_cs:refresh_token=example3_rt
-"
+PORT=...
 
+# To generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+EMAIL_SECRET_KEY=...
 
 # Optional: LLM providers
 OPENAI_API_KEY=sk-...
@@ -121,9 +106,7 @@ GROQ_API_KEY=...
 ```
 
 Notes:
-- Use **app-specific passwords** when required by your email provider
 - You only need to configure the LLM providers you plan to use
-- OAuth-based auth may be added/configured depending on provider support
 
 ---
 

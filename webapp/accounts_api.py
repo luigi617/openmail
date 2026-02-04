@@ -4,6 +4,8 @@ from __future__ import annotations
 import threading
 from typing import List, Optional
 
+from fastapi.responses import HTMLResponse
+
 from context import ACCOUNTS
 from email_service import (
     BOX,
@@ -210,12 +212,35 @@ def oauth_callback(state: str = Query(...), code: str = Query(...)):
     try:
         complete_oauth_callback(state=state, code=code)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        return HTMLResponse(f"""
+            <html>
+            <body>
+                <h3>OAuth failed</h3>
+                <pre>{str(e)}</pre>
+                <p>You can close this tab.</p>
+            </body>
+            </html>
+            """, status_code=400)
 
     # reload runtime accounts so oauth2 accounts become active immediately
     _reload_accounts_now()
 
-    return {"status": "ok"}
+    return HTMLResponse("""
+        <html>
+        <body>
+            <script>
+            try {
+                if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: "oauth-success" }, "*");
+                }
+            } finally {
+                window.close();
+            }
+            </script>
+            <p>Authentication complete. You can close this tab.</p>
+        </body>
+        </html>
+        """)
 
 
 @router.patch("/{account_id}")
